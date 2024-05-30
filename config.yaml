@@ -1,0 +1,56 @@
+# config file for mvtp_benchmark
+
+# The minimum turning radius of the vehicle
+r: 3
+# r * deltat = step distance.
+deltat: 0.706
+# A movement cost penalty for turning (choosing non straight motion primitives)
+penaltyTurning: 1.5
+# A movement cost penalty for reversing (choosing motion primitives >
+# 2)
+penaltyReversing: 2.0
+# A movement cost penalty for change of direction (changing from primitives < 3 to primitives > 2)
+penaltyCOD: 2.0
+# map resolution
+mapResolution: 2.0
+
+# width of car
+carWidth: 2.0
+# distance from rear to vehicle front end
+LF: 2.0
+# distance from rear to vehicle back end
+LB: 1.0
+WB: 1.0 # wheel base
+# obstacle default radius
+obsRadius: 0.8
+# least time to wait for constraint
+constraintWaitTime: 2
+
+
+
+# optimizer parameters.
+w_cfg : 1
+w_kine: 10
+w_bicycle: 10.0
+w_corridor : 1.0
+w_dynamic : 1
+
+w_x : 0.01
+w_y : 0.01
+w_dv : 10
+w_dsteer: 10
+w_domega: 1000.0
+max_omega: 0.07
+# the maximum speed decide the dt
+max_v: 1 
+decelerate_factor: 0.8
+
+max_iter: 10
+delta_solution_threshold: 1
+max_violation: 0.001
+# osqp solver max iterations.
+osqp_max_iter: 400 
+
+trust_radius: 2.0
+# number of points to interpolation.
+num_interpolation: 2

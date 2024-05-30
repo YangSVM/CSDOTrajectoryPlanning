@@ -1,0 +1,10 @@
+build/
+__pycache__/
+*.kdev4*
+.vscode/
+docs/
+results/
+.vscode/
+.github/
+docs/
+doxygen/
