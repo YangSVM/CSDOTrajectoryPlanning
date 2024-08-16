@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.5)
 project(PbsTrajectoryPlanning)
 # list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake_finders")
 
-find_package(Boost   REQUIRED COMPONENTS program_options)
+find_package(Boost 1.65   REQUIRED COMPONENTS program_options)
 find_package(Eigen3  3.4   REQUIRED)
 find_package(PkgConfig)
 find_package(osqp REQUIRED)

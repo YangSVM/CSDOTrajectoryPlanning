@@ -13,6 +13,9 @@ python3-matplotlib libompl-dev libeigen3-dev
 ```
 > Note: Please make sure your `matplotlib` version is above `2.0`, otherwise it may show weird image while visualization. You can upgrade it by `pip3 install -U matplotlib`.
 
+- Make sure install the osqp **version 0.63**, **not** 1.0.0. You can build from source or used the compiled files. [Download link](https://github.com/osqp/osqp/releases). [Instruction link 1](https://osqp.org/docs/get_started/C.html), [Instruction link 2](https://osqp.org/docs/get_started/sources.html#build-from-sources).
+
+> Other module version references: ompl version 1.5.2; YamlCpp 0.5.2;
 
 ### Build
 ```bash
@@ -28,7 +31,7 @@ make -j8
 ```bash
 # make sure your are in build folder
 # run one instance
-./csdo -i ../benchmark/map100by100/agents50/obstacle/map_100by100_obst50_agents50_ex13.yaml -o output.yaml 
+./csdo -i ../benchmark/map50by50/agents25/obstacle/map_50by50_obst25_agents25_ex0.yaml -o output.yaml
 # make sure you are in scripts folder
 # test through the benchmark. 
 ./test_through_benchmark
@@ -70,7 +73,15 @@ A typical result from benchmark acts like below:
 <img src="img/dataset.gif" width="60%" height="60%">
 
 ## Citation 
-This work is submitted to RA-L.
+This work was accepted by RA-L.
+```
+@article{yang2024csdo,
+  title={CSDO: Enhancing Efficiency and Success in Large-Scale Multi-Vehicle Trajectory Planning},
+  author={Yang, Yibin and Xu, Shaobing and Yan, Xintao and Jiang, Junkai and Wang, Jianqiang and Huang, Heye},
+  journal={arXiv preprint arXiv:2405.20858},
+  year={2024}
+}
+```
 
 
 ## Related Resources
