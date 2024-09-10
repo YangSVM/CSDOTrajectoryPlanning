@@ -55,7 +55,7 @@ The agent and solver configurations, including the size, the kinematic constrain
 
 ## Benchmark
 
-Benchmark for evaluating CL-MAPF problem are available in `benchmark` folder. It contains 3000 unique instances with different map size and agents number.
+Benchmark for evaluating CSDO problem are available in `benchmark` folder. It contains 2000 unique instances with different map size and agents number. **Attention**! We use different benchmark with CL-CBS.
 
 The folder are arranged like follows, each mapset contains 60 instances:
 
@@ -75,12 +75,10 @@ benchmark
 
 The instance are in `yaml` format.
 
-A typical result from benchmark acts like below:
 
-<img src="img/dataset.gif" width="60%" height="60%">
 
 ## Citation 
-This work was accepted by RA-L.
+This work was accepted by RA-L. Paper link: [Arxiv](https://arxiv.org/abs/2405.20858), [RAL_Early_Access](https://ieeexplore.ieee.org/document/10628993).
 ```
 @article{yang2024csdo,
   title={CSDO: Enhancing Efficiency and Success in Large-Scale Multi-Vehicle Trajectory Planning},
@@ -94,7 +92,7 @@ This work was accepted by RA-L.
 ## Related Resources
 We acknowledge all the open-source contributors for the following projects to make this work possible:
 
-- [CL-CBS](https://opensource.org/licenses/MIT).
+- [CL-CBS](https://github.com/APRIL-ZJU/CL-CBS).
 - [Priority based Search](https://github.com/Jiaoyang-Li/PBS). Check its license for commercial usage.
 - [Fast ASCO](https://github.com/libai1943/MVTP_benchmark)
 - [Motion Planning](https://github.com/zhm-real/MotionPlanning)
