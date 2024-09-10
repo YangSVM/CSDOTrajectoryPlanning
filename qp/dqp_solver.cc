@@ -64,7 +64,7 @@ bool SolverDQP::calcIndividualQP(
     cout << "\n\n---------------process agent " << a << "------------\n";
   }
   Timer timer_prepos;
-  bool success = true;
+  // bool success = true;
   double th_solution = param.delta_solution_threshold;
   double delta_solution = th_solution +1;  // initial value. change in solution
   

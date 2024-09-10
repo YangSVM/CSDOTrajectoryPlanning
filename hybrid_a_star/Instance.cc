@@ -1,10 +1,10 @@
 #include <yaml-cpp/yaml.h> // load instance yaml file
 
 #include "hybrid_a_star/Instance.h"
+#include <assert.h>
 
-
-Instance::Instance(const string& instance_fname, 
-	int num_of_agents,  int num_of_obstacles, int warehouse_width, 
+Instance::Instance(const std::string& instance_fname, 
+	int num_of_agents,  int num_of_obstacles,
   bool cbs_scenario):
 	instance_fname(instance_fname),  num_of_agents(num_of_agents),
   num_of_obstacles(num_of_obstacles), cbs_scenario(cbs_scenario)
@@ -12,13 +12,13 @@ Instance::Instance(const string& instance_fname,
 	bool succ = loadMap();
 	if (!succ)
 	{
-		cerr << "Map file " << instance_fname << " not found." << endl;
+		std::cerr << "Map file " << instance_fname << " not found." << std::endl;
 		exit(-1);
 	}
   succ = startAndGoalValid(start_states, goal_states);
 	if (!succ)
 	{
-		cerr << "Scenario illegal." << endl;
+		std::cerr << "Scenario illegal." << std::endl;
 		exit(-1);
 	}
 }
@@ -74,9 +74,9 @@ void Instance::printAgents() const
 {
   for (int i = 0; i < num_of_agents; i++) 
   {
-    cout << "Agent" << i 
+    std::cout << "Agent" << i 
     << " : S=(" << start_states[i].x << "," << start_states[i].y << ". " << start_states[i].yaw 
-    << ") ; G=(" <<  goal_states[i].x << "," << goal_states[i].y << ". " << goal_states[i].yaw  << ")" << endl;
+    << ") ; G=(" <<  goal_states[i].x << "," << goal_states[i].y << ". " << goal_states[i].yaw  << ")" << std::endl;
   }
 }
 

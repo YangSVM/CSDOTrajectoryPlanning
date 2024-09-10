@@ -1,5 +1,5 @@
 #pragma once
-#include"pbs/common.h"
+// #include"pbs/common.h"
 #include "hybrid_a_star/motion_planning.h"
 #include "hybrid_a_star/types.h"
 
@@ -9,8 +9,8 @@ class Instance
 public:
 	Instance(){}
 	Instance(
-		const string& instance_fname, int num_of_agents = -1,
-		int num_of_obstacles = -1, int warehouse_width = 0, 
+		const std::string& instance_fname, int num_of_agents = -1,
+		int num_of_obstacles = -1, 
 		bool cbs_scenario= true);
 
 	void printAgents() const;
@@ -20,7 +20,7 @@ public:
         const std::vector<State> &starts, const std::vector<State>& goals) ;
 
 
-    string instance_fname;
+    std::string instance_fname;
 
     int num_of_agents;
     int num_of_obstacles;

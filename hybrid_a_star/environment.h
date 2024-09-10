@@ -19,7 +19,7 @@
 #include <boost/geometry.hpp>
 #include <boost/geometry/algorithms/intersection.hpp>
 #include <boost/geometry/geometries/linestring.hpp>
-#include <boost/geometry/geometries/point_xy.hpp>
+// #include <boost/geometry/geometries/point_xy.hpp>
 #include <boost/heap/fibonacci_heap.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -180,8 +180,8 @@ class Environment {
       // unordered_map <key, value, hash_function>
       std::unordered_map<State, std::tuple<State, Action, double, double>,
                          std::hash<State>>& _camefrom) {
-    double goal_distance =
-        sqrt(pow(state.x - getGoal().x, 2) + pow(state.y - getGoal().y, 2));
+    // double goal_distance =
+    //     sqrt(pow(state.x - getGoal().x, 2) + pow(state.y - getGoal().y, 2));
 
     // std::cout << "  goal position: "<< getGoal()<<std::endl;
     // std::cout << "  now position: "<< state <<std::endl;

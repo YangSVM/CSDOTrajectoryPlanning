@@ -9,8 +9,7 @@
 #include <unistd.h>
 #include <yaml-cpp/yaml.h>
 
-#include <boost/functional/hash.hpp>
-#include <boost/numeric/ublas/matrix.hpp>
+
 #include <boost/program_options.hpp>
 #include <fstream>
 #include <iostream>
@@ -50,8 +49,6 @@ int main(int argc, char* argv[]){
 		("timeLimit,t", po::value<double>()->default_value(7200), "cutoff time (seconds)")
 		("screen,s", po::value<int>()->default_value(1), "screen option (0: none; 1: results; 2:all)")
 		("stats", po::value<bool>()->default_value(false), "write to files some detailed statistics")
-		("batchsize,b", po::value<int>()->default_value(10),"batch size for iter. uncompleted")
-		("scenario,c", po::value<bool>()->default_value(true), "cl-cbs benchmark or mvtp benchmark")
 
 		("sipp", po::value<bool>()->default_value(1), "using SIPP as the low-level solver")
 		;
@@ -69,10 +66,9 @@ int main(int argc, char* argv[]){
 
 	///////////////////////////////////////////////////////////////////////////
   
-  int batchSize=vm["batchsize"].as<int>();
   double time_limit=vm["timeLimit"].as<double>();
-  // cbs_scenario use a different coordination.
-  bool cbs_scenario = vm["scenario"].as<bool>();
+
+
   int screen = vm["screen"].as<int>();
   std::string output_file = vm["output"].as<string>();
   size_t sz_output = output_file.size();
@@ -113,7 +109,7 @@ int main(int argc, char* argv[]){
   success = pbs.getPaths(solution); 
   double makespan = -1;
   double flowtime = 0;
-  for ( int a = 0 ; a < solution.size(); a++){
+  for ( size_t a = 0 ; a < solution.size(); a++){
     int ta  = solution[a].states.size() ;
     if ( ta > makespan){
       makespan = ta;

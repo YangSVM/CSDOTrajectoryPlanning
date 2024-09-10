@@ -2,14 +2,14 @@
 
 HybriAStarInterface::HybriAStarInterface(
     const Instance& instance, int agent_id
-) : SingleAgentSolver(instance, agent_id),
+) : SingleAgentSolver(instance),
     env(instance.dimx, instance.dimy, instance.obstacles, dynamic_obstacles, instance.goal_states, agent_id),
     hybridAStar(env)
 {
 
 };
 
-Path HybriAStarInterface::findOptimalPath(const set<int>& higher_agents, const vector<Path*>& paths, int agent){
+Path HybriAStarInterface::findOptimalPath(const std::set<int>& higher_agents, const std::vector<Path*>& paths, int agent){
     Path m_solution;
     dynamic_obstacles.clear();
     // TODO 两次插入，改为一次
@@ -32,7 +32,7 @@ Path HybriAStarInterface::findOptimalPath(const set<int>& higher_agents, const v
     }
 
     hybridAStar.resetDynamicObstacles( higher_agents, paths);
-    bool success = hybridAStar.search(instance.start_states[agent], m_solution);
+    hybridAStar.search(instance.start_states[agent], m_solution);
 
     return m_solution;
 }

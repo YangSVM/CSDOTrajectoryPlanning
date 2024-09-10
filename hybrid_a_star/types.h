@@ -7,7 +7,7 @@
 using libMultiRobotPlanning::Neighbor;
 using libMultiRobotPlanning::PlanResult;
 using libMultiRobotPlanning::Environment;
-using namespace libMultiRobotPlanning;
+// using namespace libMultiRobotPlanning;
 // 实例化所有的模板
 
 using Environment_t =  libMultiRobotPlanning::Environment<Location, State, Action, double>;

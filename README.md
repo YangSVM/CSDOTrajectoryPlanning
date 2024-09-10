@@ -9,11 +9,18 @@ CSDO is a hierarchical planner using Centralized Searching and Decentralized Opt
 ### Requirement
 ```bash
 sudo apt-get install g++ cmake libboost-program-options-dev libyaml-cpp-dev \
-python3-matplotlib libompl-dev libeigen3-dev
+python3-matplotlib libompl-dev
 ```
 > Note: Please make sure your `matplotlib` version is above `2.0`, otherwise it may show weird image while visualization. You can upgrade it by `pip3 install -U matplotlib`.
 
-- Make sure install the osqp **version 0.63**, **not** 1.0.0. You can build from source or used the compiled files. [Download link](https://github.com/osqp/osqp/releases). [Instruction link 1](https://osqp.org/docs/get_started/C.html), [Instruction link 2](https://osqp.org/docs/get_started/sources.html#build-from-sources).
+- Make sure install the osqp **version 0.63**, **not** 1.0.0. You can build from source or used the compiled files. [Download link](https://github.com/osqp/osqp/releases). [Instruction link 1](https://osqp.org/docs/get_started/C.html), [Instruction link 2](https://osqp.org/docs/get_started/sources.html#build-from-sources). **Make sure** you do the `sudo make install` at the end.
+- Make sure install the eigen **version 3.4.0**. You can download it from the [offical website](https://eigen.tuxfamily.org/index.php?title=Main_Page) or [gitlab](https://gitlab.com/libeigen/eigen/-/releases) . Then build it from source. Follow the instruction in the downloaded `INSTALL` file. Specifically, you should do the followings.
+  ```bash
+  mkdir build
+  cd build
+  cmake ..
+  sudo cmake install
+  ```
 
 > Other module version references: ompl version 1.5.2; YamlCpp 0.5.2;
 

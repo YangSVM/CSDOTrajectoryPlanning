@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include "hybrid_a_star/Instance.h"
+#include "pbs/common.h"
 
 class LLNode // low-level node
 {
@@ -95,7 +96,7 @@ public:
 	virtual string getName() const = 0;
 
 
-	SingleAgentSolver(const Instance& instance, int agent) :
+	SingleAgentSolver(const Instance& instance) :
 		instance(instance){	};
 
   virtual ~SingleAgentSolver(){} ;

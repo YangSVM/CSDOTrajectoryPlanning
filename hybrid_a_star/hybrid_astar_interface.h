@@ -11,8 +11,8 @@ public:
         const Instance& instance, int agent_id
     ) ;
 
-    Path findOptimalPath(const set<int>& higher_agents, const vector<Path*>& paths, int agent);
-    string getName() const override { return "hybrid_a_star";}; 
+    Path findOptimalPath(const std::set<int>& higher_agents, const std::vector<Path*>& paths, int agent) override;
+    std::string getName() const override { return "hybrid_a_star";}; 
 
 
 private:
