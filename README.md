@@ -87,7 +87,7 @@ This work was accepted by RA-L.
 ## Related Resources
 We acknowledge all the open-source contributors for the following projects to make this work possible:
 
-- [CL-CBS](https://opensource.org/licenses/MIT).
+- [CL-CBS](https://github.com/APRIL-ZJU/CL-CBS).
 - [Priority based Search](https://github.com/Jiaoyang-Li/PBS). Check its license for commercial usage.
 - [Fast ASCO](https://github.com/libai1943/MVTP_benchmark)
 - [Motion Planning](https://github.com/zhm-real/MotionPlanning)
