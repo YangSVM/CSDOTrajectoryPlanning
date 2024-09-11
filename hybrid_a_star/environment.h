@@ -16,9 +16,6 @@
 #include <ompl/base/spaces/SE2StateSpace.h>
 
 #include <boost/functional/hash.hpp>
-#include <boost/geometry.hpp>
-#include <boost/geometry/algorithms/intersection.hpp>
-#include <boost/geometry/geometries/linestring.hpp>
 // #include <boost/geometry/geometries/point_xy.hpp>
 #include <boost/heap/fibonacci_heap.hpp>
 #include <unordered_map>
