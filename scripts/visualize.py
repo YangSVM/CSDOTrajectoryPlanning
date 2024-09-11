@@ -13,7 +13,6 @@ import argparse
 import numpy as np
 import yaml
 import matplotlib
-from plot_car import plot_car
 matplotlib.use("Qt5Agg")
 
 from collision_detection import collision_rect_and_rect, collision_circle_and_rect
