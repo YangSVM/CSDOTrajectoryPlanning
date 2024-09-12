@@ -47,7 +47,7 @@ make -j8
 ### Visualize Results
 ```bash
 # make sure your are in build folder
-python3 ../scripts/visualize.py -m  ../benchmark/map100by100/agents50/obstacle/map_50by50_obst25_agents25_ex0.yaml  -s output.yaml
+python3 ../scripts/visualize.py -m  ../benchmark/map50by50/agents25/obstacle/map_50by50_obst25_agents25_ex0.yaml  -s output.yaml
 ```
 
 ### Agent and Solver Configuration
