@@ -22,6 +22,7 @@
 
 #include "hybrid_a_star/neighbor.h"
 #include "hybrid_a_star/planresult.h"
+#include "common/motion_planning.h"
 
 #include <yaml-cpp/yaml.h>
 #include <fstream>
@@ -93,9 +94,10 @@ class HybridAStar {
     solution.actions.clear();
     solution.cost = 0;
 
-    openSet_t openSet;
+    openSet_t openSet;  // heap. priority queue of Node
+    // map node index to open_set handle.
     std::unordered_map<uint64_t, heapHandle_t, std::hash<uint64_t>> stateToHeap;
-    std::unordered_set<uint64_t, std::hash<uint64_t>> closedSet;
+    std::unordered_set<uint64_t, std::hash<uint64_t>> closedSet; // node index.
     std::unordered_map<State, std::tuple<State, Action, Cost, Cost>,
                        StateHasher>
         cameFrom;         // store the parent node in the unorderd  map
@@ -110,29 +112,12 @@ class HybridAStar {
     neighbors.reserve(10);
 
     while (!openSet.empty()) {
-          // std::cout << "low debug 1.1.1\n";
-      if (closedSet.size()>1e5){
-        // std::cout << "low debug 1.1.2\n";
-
-        std::cout<<"\033[1m\033[31mClosed set max size reached. Hybrid A* ig failed to find a solution for single agent\033[0m\n";
-        // // output something for debug
-        // std::ofstream debug_stream;
-        // debug_stream.open("/media/tiecun/Data/2_keyan/0mvtp/mvtp_ws/src/dmvtp/results/102_hybrid.yaml");;
-        // // 输出 openset, closed set的情况
-        // debug_stream << "  openset:\n";
-        // for (auto it=openSet.begin(); it !=openSet.end(); ++it){
-        //   debug_stream<< "  - x: "<< (*it).state.x << std::endl;
-        //   debug_stream<< "    y: "<< (*it).state.y << std::endl;
-        //   debug_stream<< "    yaw: "<< (*it).state.yaw << std::endl;
-        //   debug_stream<< "    fscore: "<< (*it).fScore << std::endl;
-        //   debug_stream<< "    gscore: "<< (*it).gScore << std::endl;
-        // }
-        // // output the closed set:
-        // debug_stream << "  closedset:\n";
-        // for (auto cstate: closedSet){
-        //   debug_stream<< "  - ind: "<< cstate << std::endl;
-
-        // }
+          // std::cout << "low debug 1.1.1 enter the search loop.\n";
+      if (closedSet.size()>Constants::maxClosedSetSize){
+        std::cout<<"\033[1m\033[31mClosed set max size reached. \
+          Hybrid A* ig failed to find a solution for single agent\033[0m\n";
+        std::cout << "If you want to use it in large map. \
+          Please larger the closed set maximum size.\n";
         return false;
       }
 
@@ -140,28 +125,19 @@ class HybridAStar {
       Node current = openSet.top();
       // m_env.onExpandNode(current.state, current.fScore, current.gScore);
       State path_end(0,0,0);
+
+      // ReedsShepp forward to test if it is a solution. 
+      // path_end is near the goal but not the same.
       if (m_env.isSolution(current.state, current.gScore, path_end, cameFrom)) {
         solution.states.clear();
         solution.actions.clear();
-          // std::cout << "low debug 1.2\n";
-          // std::cout << m_env.getGoal() <<std::endl;
-        // auto iter = cameFrom.find(m_env.getGoal());
+
         auto iter = cameFrom.find(path_end);
-
-        // std::cout << "low debug 1.2 1\n";
-        // std::cout << "came from size:" << cameFrom.size() << std::endl;
-
         solution.cost = std::get<3>(iter->second);
         solution.fmin =
             std::get<3>(iter->second) +
             m_env.admissibleHeuristic(iter->first);  // current.fScore;
         while (iter != cameFrom.end()) {
-          // std::cout << " From " << std::get<0>(iter->second)
-          //           << " to Node:" << iter->first
-          //           << " with ACTION: " << std::get<1>(iter->second) << "
-          //           cost "
-          //           << std::get<2>(iter->second) << " g_score "
-          //           << std::get<3>(iter->second) << std::endl;
           solution.states.push_back(
               std::make_pair<>(iter->first, std::get<3>(iter->second)));
           solution.actions.push_back(std::make_pair<>(
@@ -173,8 +149,6 @@ class HybridAStar {
         std::reverse(solution.actions.begin(), solution.actions.end());
 
         openSet.clear();
-
-
         return true;
       }
 
@@ -185,11 +159,11 @@ class HybridAStar {
       neighbors.clear();
       m_env.getNeighbors(current.state, current.action, neighbors);
       for (const Neighbor<State, Action, Cost>& neighbor : neighbors) {
-        if (closedSet.find(m_env.calcIndex(neighbor.state)) ==
-            closedSet.end()) {  // not in closed set
+        // 1. do nothing if it is closed.
+        if (closedSet.find(m_env.calcIndex(neighbor.state)) == closedSet.end()) { 
           Cost tentative_gScore = current.gScore + neighbor.cost;
           auto iter = stateToHeap.find(m_env.calcIndex(neighbor.state));
-          if (iter == stateToHeap.end()) {  // Discover a new node
+          if (iter == stateToHeap.end()) {  // 2. Discover a new node(x,y,yaw,t).
             Cost fScore =
                 tentative_gScore + m_env.admissibleHeuristic(neighbor.state);
             auto handle = openSet.push(Node(neighbor.state, neighbor.action,
@@ -200,11 +174,11 @@ class HybridAStar {
             // m_env.onDiscover(neighbor.state, fScore, tentative_gScore);
             // std::cout << "  this is a new node " << fScore << "," <<
             // tentative_gScore << std::endl;
-          } else {
+          } 
+          else { // find an exsiting node in open_set.
             auto handle = iter->second;
-            // std::cout << "  this is an old node: " << tentative_gScore << ","
-            // << (*handle).gScore << std::endl;
-            // We found this node before with a better path
+
+            // 3. We found this node before with a better path
             if (tentative_gScore >= (*handle).gScore) {
               continue;
             }
@@ -218,12 +192,9 @@ class HybridAStar {
             // m_env.onDiscover(neighbor.state, (*handle).fScore,
             //                  (*handle).gScore);
           }
-    // std::cout << "low debug 4\n";
 
           // Best path for this node so far
-          // TODO: this is not the best way to update "cameFrom", but otherwise
-          // default c'tors of State and Action are required
-          cameFrom.erase(neighbor.state);
+          cameFrom.erase(neighbor.state);  // erase first or it won't update.
           cameFrom.insert(std::make_pair<>(
               neighbor.state,
               std::make_tuple<>(current.state, neighbor.action, neighbor.cost,

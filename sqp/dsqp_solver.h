@@ -2,11 +2,12 @@
 #include <eigen3/Eigen/Sparse>
 #include <eigen3/Eigen/Core>
 #include "osqp/osqp.h"
-#include "hybrid_a_star/motion_planning.h"
-#include "qp/corridor.h"
+#include "common/motion_planning.h"
+#include "sqp/corridor.h"
 #include "hybrid_a_star/timer.h"
-#include "qp/post_process.h"
-#include "qp/utils.h"
+#include "sqp/inter_agent_cons.h"
+#include "sqp/utils.h"
+#include "sqp/common.h"
 
 using Eigen::VectorXd;
 using Eigen::VectorXi;
@@ -17,33 +18,15 @@ typedef Eigen::SparseMatrix<double> SpMat;
 // triplet. 3 element tuple. (row_id, col_id, value)
 typedef Eigen::Triplet<double> Triplet;  
 using libMultiRobotPlanning::Corridor;
-
-struct InterPlane{
-  int t;
-  double a_f2f,b_f2f, c_f2f; // front circle to other's front circle
-  double a_f2r,b_f2r, c_f2r; // front circle to other's rear circle
-  double a_r2f,b_r2f, c_r2f; // rear circle to other's front circle
-  double a_r2r,b_r2r, c_r2r; // rear circle to other's rear circle
+using namespace libMultiRobotPlanning;
 
 
-  InterPlane(
-    int t, 
-    double a_f2f, double b_f2f, double c_f2f, double a_f2r, double b_f2r, double c_f2r,
-    double a_r2f, double b_r2f, double c_r2f, double a_r2r, double b_r2r, double c_r2r
-  )
-    : t(t), a_f2f(a_f2f), b_f2f(b_f2f), c_f2f(c_f2f), a_f2r(a_f2r), b_f2r(b_f2r), c_f2r(c_f2r),
-    a_r2f(a_r2f), b_r2f(b_r2f), c_r2f(c_r2f), a_r2r(a_r2r), b_r2r(b_r2r), c_r2r(c_r2r)
-    {}
-};
-
-class SolverDQP{
+class SolverDSQP{
 public:
-  SolverDQP(
-    size_t num_agent, size_t max_time, 
+  SolverDSQP(
     vector<vector<OptimizeResult>>& solutions,
-    const std::vector<std::vector<OptimizeResult>>& guesses,
-    const std::vector<std::array<int, 3>>& relative_pair,
-    const std::vector<std::vector<Corridor>>& corridors,
+    const std::vector<std::vector<OptimizeResult>>& x0_bar,
+    const vector<vector<InterPlane>>& inter_planes,
     double dimx, double dimy,
     const std::unordered_set<Location>& obstacles,
     const QpParm& param,
@@ -58,11 +41,13 @@ public:
   inline int getSolverStatus(){ return solve_status;};
   // inline int getSearchStatus(){ return search_status;};
   inline double  getMaxOfRuntimes(){ return max_individual_opt_runtime;};
+  inline bool get_initial_static_legal(){ return initial_static_legal;};
   
   std::vector<int> num_iterations;
+  vector<vector<Corridor>> corridors;
 
 private:
-  bool calcIndividualQP(
+  bool calcIndividualSQP(
     int a, 
     vector<OptimizeResult>& solution,
     const std::vector<std::vector<Corridor>>& corridors,
@@ -71,12 +56,12 @@ private:
     const QpParm& param
   );
 
-  void calcEqualInterPlanes(
-    const ArrayXd& xfs0, const ArrayXd& yfs0, 
-    const ArrayXd& xrs0, const ArrayXd& yrs0,
-    const std::vector<std::array<int, 3>>& relative_pair,
-    vector<vector<InterPlane>>& inter_planes
-  );
+//   void calcEqualInterPlanes(
+//     const ArrayXd& xfs0, const ArrayXd& yfs0, 
+//     const ArrayXd& xrs0, const ArrayXd& yrs0,
+//     const std::vector<std::array<int, 3>>& neighbor_pairs,
+//     vector<vector<InterPlane>>& inter_planes
+// );
 
   void calcKineConstraint(
     int a, SpMat& M, VectorXd& ub, VectorXd& lb, int si,
@@ -178,4 +163,5 @@ private:
   std::vector<std::pair<int, int>> unsuccess_status;
   int logger_level;
   Eigen::IOFormat CleanFmt;
+  bool initial_static_legal;
 };

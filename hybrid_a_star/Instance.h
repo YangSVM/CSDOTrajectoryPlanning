@@ -1,17 +1,15 @@
 #pragma once
 // #include"pbs/common.h"
-#include "hybrid_a_star/motion_planning.h"
+#include "common/motion_planning.h"
 #include "hybrid_a_star/types.h"
 
-// Currently only works for undirected unweighted 4-nighbor grids
 class Instance 
 {
 public:
 	Instance(){}
 	Instance(
 		const std::string& instance_fname, int num_of_agents = -1,
-		int num_of_obstacles = -1, 
-		bool cbs_scenario= true);
+		int num_of_obstacles = -1);
 
 	void printAgents() const;
 
@@ -25,7 +23,6 @@ public:
     int num_of_agents;
     int num_of_obstacles;
 
-    bool cbs_scenario;
 
     size_t dimx;
     size_t dimy;

@@ -16,14 +16,13 @@
 #include <ompl/base/spaces/SE2StateSpace.h>
 
 #include <boost/functional/hash.hpp>
-// #include <boost/geometry/geometries/point_xy.hpp>
 #include <boost/heap/fibonacci_heap.hpp>
 #include <unordered_map>
 #include <unordered_set>
 
 #include "hybrid_a_star/neighbor.h"
 #include "hybrid_a_star/planresult.h"
-#include "hybrid_a_star/motion_planning.h"
+#include "common/motion_planning.h"
 #include "hybrid_a_star/Instance.h"
 
 namespace libMultiRobotPlanning {
@@ -34,7 +33,7 @@ using namespace libMultiRobotPlanning;
 typedef ompl::base::SE2StateSpace::StateType OmplState;
 
 /**
- * @brief  Environment class
+ * @brief  Environment class. update to just one agent.
  *
  * @tparam Location
  * @tparam State
@@ -46,35 +45,30 @@ class Environment {
  public:
   Environment(size_t maxx, size_t maxy, const std::unordered_set<Location>& obstacles,
               const std::multimap<int, State>& dynamic_obstacles,
-              const std::vector<State>& goals_, int agent_id)
+              const std::vector<State>& goals, int agent_id)
       : m_maxx(maxx), m_maxy(maxy), 
       m_obstacles(obstacles),
-        // m_dynamic_obstacles(std::move(dynamic_obstacles)),
-        m_agentIdx(0),
-        m_lastGoalConstraint(-1),
-        m_highLevelExpanded(0),
-        m_lowLevelExpanded(0),
-        all_goals(goals_),
-        agent_id(agent_id)
-         {
+      m_lastGoalConstraint(-1),
+      m_highLevelExpanded(0),
+      m_lowLevelExpanded(0),
+      all_goals(goals),
+      agent_id(agent_id)
+  {
     m_dimx = (int)maxx / Constants::mapResolution;
     m_dimy = (int)maxy / Constants::mapResolution;
     // std::cout << "env build " << m_dimx << " " << m_dimy << " "
     //           << m_obstacles.size() << std::endl;
-     std::vector<State> goals(goals_.begin()+ agent_id, goals_.begin()+ agent_id+1);
-    holonomic_cost_maps = std::vector<std::vector<std::vector<double>>>(
-        goals.size(), std::vector<std::vector<double>>(
-                          m_dimx, std::vector<double>(m_dimy, 0)));
-    m_goals.clear();
+    m_goal = goals[agent_id];
 
-    for (const auto &g : goals) {
-      if (g.x < 0 || g.x > maxx || g.y < 0 || g.y > maxy) {
+    holonomic_cost_map = std::vector<std::vector<double>>(
+         std::vector<std::vector<double>>(
+                          m_dimx, std::vector<double>(m_dimy, 0)));
+    
+      if (m_goal.x < 0 || m_goal.x > maxx || m_goal.y < 0 || m_goal.y > maxy) {
         std::cout << "\033[1m\033[31m Goal out of boundary, Fail to build "
                      "environment \033[0m\n";
         return;
-      }
-      m_goals.emplace_back(
-          State(g.x, g.y, Constants::normalizeHeadingRad(g.yaw)));
+
     }
     updateCostmap();
   }
@@ -102,7 +96,7 @@ class Environment {
       );
     }
 
-    // do not go through the lower rank's goal
+    // do not go through the lower agents' goals. stay the same as CL-CBS.
     int num_agents = all_goals.size();
     for ( int a = 0 ; a <num_agents; a++){
       if ( higher_agents.find(a) != higher_agents.end() || a == agent_id ) {
@@ -138,24 +132,24 @@ class Environment {
     OmplState *rsEnd = (OmplState *)reedsSheppPath.allocState();
     rsStart->setXY(s.x, s.y);
     rsStart->setYaw(s.yaw);
-    rsEnd->setXY(m_goals[m_agentIdx].x, m_goals[m_agentIdx].y);
-    rsEnd->setYaw(m_goals[m_agentIdx].yaw);
+    rsEnd->setXY(m_goal.x, m_goal.y);
+    rsEnd->setYaw(m_goal.yaw);
     double reedsSheppCost = reedsSheppPath.distance(rsStart, rsEnd);
     // std::cout << "ReedsShepps cost:" << reedsSheppCost << std::endl;
     // Euclidean distance
-    double euclideanCost = sqrt(pow(m_goals[m_agentIdx].x - s.x, 2) +
-                                pow(m_goals[m_agentIdx].y - s.y, 2));
+    double euclideanCost = sqrt(pow(m_goal.x - s.x, 2) +
+                                pow(m_goal.y - s.y, 2));
     // std::cout << "Euclidean cost:" << euclideanCost << std::endl;
     // holonomic-with-obstacles heuristic
     double twoDoffset =
         sqrt(pow((s.x - (int)s.x) -
-                     (m_goals[m_agentIdx].x - (int)m_goals[m_agentIdx].x),
+                     (m_goal.x - (int)m_goal.x),
                  2) +
              pow((s.y - (int)s.y) -
-                     (m_goals[m_agentIdx].y - (int)m_goals[m_agentIdx].y),
+                     (m_goal.y - (int)m_goal.y),
                  2));
     double twoDCost =
-        holonomic_cost_maps[m_agentIdx][(int)s.x / Constants::mapResolution]
+        holonomic_cost_map[(int)s.x / Constants::mapResolution]
                            [(int)s.y / Constants::mapResolution] -
         twoDoffset;
     // std::cout << "holonomic cost:" << twoDCost << std::endl;
@@ -165,11 +159,11 @@ class Environment {
   }
 
   bool isInRange( const State& state){
-    // 距离终点越近，概率越高
+    // closer to the goal, higher the probability to shoot the RS path.
     int random = rand() % 10 + 1;   // random int [1,10]
     float dx = std::abs(state.x - getGoal().x) / random;
     float dy = std::abs(state.y - getGoal().y) / random;
-    return (dx * dx) + (dy * dy) < Constants::dubinsShotDistance;
+    return (dx * dx) + (dy * dy) < Constants::dubinsShotDistanceSquare;
   }
 
   bool isSolution(
@@ -263,7 +257,7 @@ class Environment {
       }
 
     }
-    // m_goals[m_agentIdx] = path.back();
+    // m_goal = path.back(); // change the goal is not suitable.
     path_end = path.back();
 
     _camefrom.insert(cameFrom.begin(), cameFrom.end());
@@ -319,8 +313,8 @@ class Environment {
 
   }
 
-  State getGoal() { return m_goals[m_agentIdx]; }
-  State getPathEnd() { return m_goals[m_agentIdx]; }
+  State getGoal() { return m_goal; }
+  State getPathEnd() { return m_goal; }
   
   uint64_t calcIndex(const State &s) {
     return (uint64_t)s.time * (2 * M_PI / Constants::deltat) *
@@ -342,24 +336,6 @@ class Environment {
 
   int lowLevelExpanded() const { return m_lowLevelExpanded; }
 
-  bool startAndGoalValid(const std::vector<State> &m_starts, const size_t iter,
-                         const int batchsize) {
-    assert(m_goals.size() == m_starts.size());
-    for (size_t i = 0; i < m_goals.size(); i++)
-      for (size_t j = i + 1; j < m_goals.size(); j++) {
-        if (m_goals[i].agentCollision(m_goals[j])) {
-          std::cout << "ERROR: Goal point of " << i + iter * batchsize << " & "
-                    << j + iter * batchsize << " collide!\n";
-          return false;
-        }
-        if (m_starts[i].agentCollision(m_starts[j])) {
-          std::cout << "ERROR: Start point of " << i + iter * batchsize << " & "
-                    << j + iter * batchsize << " collide!\n";
-          return false;
-        }
-      }
-    return true;
-  }
 
  private:
   State getState(size_t agentIdx,
@@ -436,48 +412,46 @@ class Environment {
                          (int)obs.y / Constants::mapResolution));
     }
 
-    for (size_t idx = 0; idx < m_goals.size(); idx++) {
-      heap.clear();
-      int goal_x = (int)m_goals[idx].x / Constants::mapResolution;
-      int goal_y = (int)m_goals[idx].y / Constants::mapResolution;
-      heap.push(std::make_pair(State(goal_x, goal_y, 0), 0));
+    heap.clear();
+    int goal_x = (int)m_goal.x / Constants::mapResolution;
+    int goal_y = (int)m_goal.y / Constants::mapResolution;
+    heap.push(std::make_pair(State(goal_x, goal_y, 0), 0));
 
-      while (!heap.empty()) {
-        std::pair<State, double> node = heap.top();
-        heap.pop();
+    while (!heap.empty()) {
+      std::pair<State, double> node = heap.top();
+      heap.pop();
 
-        int x = node.first.x;
-        int y = node.first.y;
-        for (int dx = -1; dx <= 1; dx++)
-          for (int dy = -1; dy <= 1; dy++) {
-            if (dx == 0 && dy == 0) continue;
-            int new_x = x + dx;
-            int new_y = y + dy;
-            if (new_x == goal_x && new_y == goal_y) continue;
-            if (new_x >= 0 && new_x < m_dimx && new_y >= 0 && new_y < m_dimy &&
-                holonomic_cost_maps[idx][new_x][new_y] == 0 &&
-                temp_obs_set.find(std::make_pair(new_x, new_y)) ==
-                    temp_obs_set.end()) {
-              holonomic_cost_maps[idx][new_x][new_y] =
-                  holonomic_cost_maps[idx][x][y] +
-                  sqrt(pow(dx * Constants::mapResolution, 2) +
-                       pow(dy * Constants::mapResolution, 2));
-              heap.push(std::make_pair(State(new_x, new_y, 0),
-                                       holonomic_cost_maps[idx][new_x][new_y]));
-            }
+      int x = node.first.x;
+      int y = node.first.y;
+      for (int dx = -1; dx <= 1; dx++)
+        for (int dy = -1; dy <= 1; dy++) {
+          if (dx == 0 && dy == 0) continue;
+          int new_x = x + dx;
+          int new_y = y + dy;
+          if (new_x == goal_x && new_y == goal_y) continue;
+          if (new_x >= 0 && new_x < m_dimx && new_y >= 0 && new_y < m_dimy &&
+              holonomic_cost_map[new_x][new_y] == 0 &&
+              temp_obs_set.find(std::make_pair(new_x, new_y)) ==
+                  temp_obs_set.end()) {
+            holonomic_cost_map[new_x][new_y] =
+                holonomic_cost_map[x][y] +
+                sqrt(pow(dx * Constants::mapResolution, 2) +
+                      pow(dy * Constants::mapResolution, 2));
+            heap.push(std::make_pair(State(new_x, new_y, 0),
+                                      holonomic_cost_map[new_x][new_y]));
           }
-      }
+        }
     }
 
-    // for (size_t idx = 0; idx < m_goals.size(); idx++) {
+    // 
     //   std::cout << "---------Cost Map -------Agent: " << idx
     //             << "------------\n";
     //   for (size_t i = 0; i < m_dimx; i++) {
     //     for (size_t j = 0; j < m_dimy; j++)
-    //       std::cout << holonomic_cost_maps[idx][i][j] << "\t";
+    //       std::cout << holonomic_cost_map[i][j] << "\t";
     //     std::cout << std::endl;
     //   }
-    // }
+    // 
   }
 
   bool generatePath(State startState, int act, double n_dyaw_act,
@@ -535,7 +509,7 @@ class Environment {
     xSucc = s.x + dx * cos(s.yaw) - dy * sin(s.yaw);
     ySucc = s.y + dx * sin(s.yaw) + dy * cos(s.yaw);
     yawSucc = Constants::normalizeHeadingRad(s.yaw + dyaw);
-    // std::cout << m_agentIdx << " ratio::" << ratio << std::endl;
+
     State nextState(xSucc, ySucc, yawSucc, result.back().first.time + 1);
     if (!stateValid(nextState)) return false;
     result.emplace_back(std::make_pair<>(nextState, ratio * Constants::dx[0]));
@@ -547,13 +521,13 @@ class Environment {
   int m_dimx;
   int m_dimy;
   double m_maxx,  m_maxy;
-  std::vector<std::vector<std::vector<double>>> holonomic_cost_maps;
+  std::vector<std::vector<double>> holonomic_cost_map;
   const std::unordered_set<Location>& m_obstacles;
   std::multimap<int, State> m_dynamic_obstacles;
-  std::vector<State> m_goals;
+  State m_goal;
   // std::vector< std::vector<int> > m_heuristic;
   std::vector<double> m_vel_limit;
-  size_t m_agentIdx;
+
   int m_lastGoalConstraint;
   int m_highLevelExpanded;
   int m_lowLevelExpanded;

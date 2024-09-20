@@ -4,10 +4,9 @@
 #include <assert.h>
 
 Instance::Instance(const std::string& instance_fname, 
-	int num_of_agents,  int num_of_obstacles,
-  bool cbs_scenario):
+	int num_of_agents,  int num_of_obstacles):
 	instance_fname(instance_fname),  num_of_agents(num_of_agents),
-  num_of_obstacles(num_of_obstacles), cbs_scenario(cbs_scenario)
+  num_of_obstacles(num_of_obstacles)
 {
 	bool succ = loadMap();
 	if (!succ)
@@ -49,14 +48,9 @@ bool Instance::loadMap()
         const auto& start = node["start"];
         const auto& goal = node["goal"];
         double yaw_start, yaw_goal;
-    if ( !cbs_scenario){
-        yaw_start = -start[2].as<double>();
-        yaw_goal = -goal[2].as<double>();
-    }
-    else{
+
         yaw_start = start[2].as<double>();
         yaw_goal = goal[2].as<double>();
-    }
     start_states.emplace_back(State(start[0].as<double>(), start[1].as<double>(),
                                     yaw_start));
     // std::cout << "s: " << startStates.back() << std::endl;

@@ -25,6 +25,8 @@ static  float mapResolution ;
 static  float xyResolution ;
 // static  float xyResolution = 0.05;
 static  float yawResolution ;
+// 1e5 
+static float maxClosedSetSize;
 
 // width of car
 static  float carWidth ;
@@ -46,12 +48,12 @@ static  float constraintWaitTime ;
 static float speed ;
 static float t_inc;
 
-// R = 3, 6.75 DEG。6个采样动作. 前(中右左)，后(中右左)
+// R = 3, 6.75 DEG。6 sample actions. forward(straight right left), back(straight right left)
 static std::vector<double> dx;
 static std::vector<double> dy ;
 static std::vector<double> dyaw ;
 
-static  double dubinsShotDistance ;
+static  double dubinsShotDistanceSquare ;
 
 // normalize to [0, 2*pi)
 static inline float normalizeHeadingRad(float t) {
@@ -64,6 +66,7 @@ static inline float normalizeHeadingRad(float t) {
 }
 };  // Constants
 
+// return theta in (-pi, pi ].
 inline float normalizeAngleAbsInPi(double x){
     x = fmod(x + M_PI, 2*M_PI);
     if (x < 0)
@@ -245,91 +248,5 @@ struct hash<State> {
 
 using Action = int;  // int<7 int ==6 wait
 using Cost = double; 
-
-// struct Conflict {
-//   int time;
-//   size_t agent1;
-//   size_t agent2;
-
-//   State s1;
-//   State s2;
-
-//   friend std::ostream& operator<<(std::ostream& os, const Conflict& c) {
-//     os << c.time << ": Collision [ " << c.agent1 << c.s1 << " , " << c.agent2
-//        << c.s2 << " ]";
-//     return os;
-//   }
-// };
-
-// struct Constraint {
-//   Constraint(int time, State s, size_t agentid)
-//       : time(time), s(s), agentid(agentid) {}
-//   Constraint() = default;
-//   int time;
-//   State s;
-//   size_t agentid;
-
-//   bool operator<(const Constraint& other) const {
-//     return std::tie(time, s.x, s.y, s.yaw, agentid) <
-//            std::tie(other.time, other.s.x, other.s.y, other.s.yaw,
-//                     other.agentid);
-//   }
-
-//   bool operator==(const Constraint& other) const {
-//     return std::tie(time, s.x, s.y, s.yaw, agentid) ==
-//            std::tie(other.time, other.s.x, other.s.y, other.s.yaw,
-//                     other.agentid);
-//   }
-
-//   friend std::ostream& operator<<(std::ostream& os, const Constraint& c) {
-//     return os << "Constraint[" << c.time << "," << c.s << "from " << c.agentid
-//               << "]";
-//   }
-
-//   bool satisfyConstraint(const State& state) const {
-//     if (state.time < this->time ||
-//         state.time > this->time + Constants::constraintWaitTime)
-//       return true;
-//     return !this->s.agentCollision(state);
-//   }
-// };
-
-// namespace std {
-// template <>
-// struct hash<Constraint> {
-//   size_t operator()(const Constraint& s) const {
-//     size_t seed = 0;
-//     boost::hash_combine(seed, s.time);
-//     boost::hash_combine(seed, s.s.x);
-//     boost::hash_combine(seed, s.s.y);
-//     boost::hash_combine(seed, s.s.yaw);
-//     boost::hash_combine(seed, s.agentid);
-//     return seed;
-//   }
-// };
-// }  // namespace std
-
-// FIXME: modidy data struct, it's not the best option
-// struct Constraints {
-//   std::unordered_set<Constraint> constraints;
-
-//   void add(const Constraints& other) {
-//     constraints.insert(other.constraints.begin(), other.constraints.end());
-//   }
-
-//   bool overlap(const Constraints& other) {
-//     for (const auto& c : constraints) {
-//       if (other.constraints.count(c) > 0) return true;
-//     }
-//     return false;
-//   }
-
-//   friend std::ostream& operator<<(std::ostream& os, const Constraints& cs) {
-//     for (const auto& c : cs.constraints) {
-//       os << c << std::endl;
-//     }
-//     return os;
-//   }
-// };
 
 void readAgentConfig(std::string fname_config) ;

@@ -38,7 +38,7 @@ public:
 	// Runs the algorithm until the problem is solved or time is exhausted 
 	bool solve(double time_limit);
 
-	PBS(const Instance& instance, bool sipp, int screen);
+	PBS(const Instance& instance,  int screen);
 	void clearSearchEngines();
 	~PBS();
 
@@ -76,7 +76,6 @@ private:
 	vector<Path*> paths;
 	vector < SingleAgentSolver* > search_engines;  // used to find (single) agents' paths and mdd
 
-	// VehicleParameter vehicle_param_;
 
     bool generateChild(int child_id, PBSNode* parent, int low, int high);
 
@@ -92,9 +91,8 @@ private:
     void printPriorityGraph() const;
 
 	bool validateSolution() const;
-	inline int getAgentLocation(int agent_id, size_t timestep) const;
 
-	vector<int> shuffleAgents() const;  //generate random permuattion of agent indices
+
 	bool terminate(PBSNode* curr); // check the stop condition and return true if it meets
 
     void getHigherPriorityAgents(const list<int>::reverse_iterator & p1, set<int>& agents);

@@ -1,6 +1,8 @@
 #pragma once
-#include "hybrid_a_star/motion_planning.h"
+#include "common/motion_planning.h"
 #include "hybrid_a_star/planresult.h"
+#include "sqp/inter_agent_cons.h"
+#include "sqp/common.h"
 
 namespace libMultiRobotPlanning{
 struct Corridor{
@@ -70,7 +72,7 @@ bool generateLocalBox(double xc, double yc,
       double ds = 0.1, double l_limit = 10.0);
 
 bool calcCorridors(
-    const std::vector<PlanResultShort<State, Action, double>>& solutions,
+  const vector<vector<OptimizeResult>>& guesses,
     const std::unordered_set<Location>& obstacles,
     double dimx, double dimy, 
     std::vector<std::vector<Corridor>>& corridors,
@@ -79,17 +81,8 @@ bool calcCorridors(
     int screen = 3
 );
 
-void findRelativePair(
-    const std::vector<std::vector<Corridor>>& corridors,
-    std::vector< std::array<int, 3>>& relative_pair
-);
 
-bool  findRelativeByTrustRegion(
-    const std::vector<PlanResultShort<State, Action, double>>& solution,
-    const double& r, // trust region radius
-    const double& rv, // rv radius
-    std::vector< std::array<int, 3>>& relative_pair
-);
+
 
 BoxStatus generateBox(
     double dimx, double dimy, double x, double y, 

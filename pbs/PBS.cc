@@ -5,7 +5,7 @@
 #include "hybrid_a_star/hybrid_astar_interface.h"
 #include "util/file_utils.h"
 
-PBS::PBS(const Instance& instance,  bool sipp, int screen) :
+PBS::PBS(const Instance& instance,   int screen) :
         screen(screen),
         num_of_agents(instance.getDefaultNumberOfAgents())
 {
@@ -804,11 +804,6 @@ bool PBS::validateSolution() const
 	return true;
 }
 
-// inline int PBS::getAgentLocation(int agent_id, size_t timestep) const
-// {
-// 	size_t t = max(min(timestep, paths[agent_id]->size() - 1), (size_t)0);
-// 	return paths[agent_id]->at(t).location;
-// }
 
 
 // used for rapid random  restart

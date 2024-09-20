@@ -71,7 +71,7 @@ int main(int argc, char** argv)
 
 	srand(0);
 	clock_t start = clock();
-    PBS pbs(instance, vm["sipp"].as<bool>(), vm["screen"].as<int>());
+    PBS pbs(instance, vm["screen"].as<int>());
     // run
     bool success = pbs.solve(time_limit);
 	double runtime = (double)(clock() - start)/CLOCKS_PER_SEC  ;

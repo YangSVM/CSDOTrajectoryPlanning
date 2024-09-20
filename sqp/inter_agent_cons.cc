@@ -1,14 +1,155 @@
 #include <fstream>
-#include <yaml-cpp/yaml.h>
-#include <boost/algorithm/string/replace.hpp>
 #include <iomanip>
-#include "qp/post_process.h"
-#include "hybrid_a_star/motion_planning.h"
-#include "qp/corridor.h"
+#include "sqp/inter_agent_cons.h"
+#include "common/motion_planning.h"
+#include "sqp/corridor.h"
 
 namespace libMultiRobotPlanning
 {
 
+// ------------- Neighbor Pair Division ---------//
+
+bool  findNeighborPairsByTrustRegion(
+    const std::vector<std::vector<OptimizeResult>>& solution,
+    const double& r, // trust region radius
+    const double& rv,
+    std::vector< std::array<int, 3>>& neighbor_pairs
+){
+    bool initial_inter_success = true;
+    int Na = solution.size();
+    // get the max time
+    int Nt = solution[0].size();
+
+    neighbor_pairs.reserve(Na*(Na-1)/2 * Nt);
+    // double rv = Constants::rv;
+
+    for ( int t = 0; t < Nt; t++){
+        for ( int i = 0; i < Na - 1; i++){
+            State si(solution[i][t].x, solution[i][t].y, solution[i][t].yaw);
+
+
+            for (int j = i + 1; j < Na; j++){
+                State sj(solution[j][t].x, solution[j][t].y, solution[j][t].yaw);
+                double d = si.agentDistance(sj);
+
+                if (d < 2*sqrt(2)*r)  
+                {                
+                    // is relative
+                    neighbor_pairs.emplace_back(std::array<int, 3>{t, i, j});
+                    if (si.agentCollision(sj)){
+                        initial_inter_success = false;
+                    }
+                }
+
+            }
+        }
+    }
+    return initial_inter_success;
+
+}
+
+
+// 计算垂直平分线
+// return a x1+b y1 + c <= 0
+void calcPerpendicular(double x1, double y1, double x2, double y2,
+  double& a, double&b, double& c1, double& c2){
+    double rv = Constants::rv;
+    a = x2 - x1;
+    b = y2 - y1;
+    double c = (x1*x1 + y1*y1 - x2*x2 - y2*y2)/2;
+    // TODO 不知道是否正确
+    double d = sqrt( pow(x1-x2, 2) + pow(y1-y2, 2) );
+    c1 = c + rv * d;
+    c2 = c - rv *d;
+    double x0 = (x1+x2)/2;
+    double y0 = (y1+y2)/2;
+    assert( fabs( a*x0 + b*y0 + c ) < 1e-3); // the plane pass the point
+    assert ( a * x1 + b *y1 +c < 0 ); // 
+    assert ( a * x2 + b *y2 +c > 0 ); // 
+}
+
+void calcEqualInterPlanes(
+    const std::vector<std::vector<OptimizeResult>>& x0_bar, 
+    const std::vector<std::array<int, 3>>& neighbor_pairs,
+    vector<vector<InterPlane>>& inter_planes
+){
+    size_t Na = x0_bar.size();
+    size_t Nt = x0_bar[0].size();
+
+    inter_planes.resize(Na);
+
+    for ( auto & p :neighbor_pairs){
+    int t = p[0];
+    int ai = p[1];
+    int aj = p[2];
+
+    int ai_index = ai*Nt + t;
+    int aj_index = aj*Nt + t;
+    OptimizeResult ri = x0_bar[ai][t];
+    OptimizeResult rj = x0_bar[aj][t];
+
+    State sit (ri.x, ri.y, ri.yaw);
+    State sjt (rj.x, rj.y, rj.yaw);
+    double xfi, yfi, xri, yri;
+    sit.GetDiscCenter( xfi, yfi,  xri, yri);
+    double xfj, yfj, xrj, yrj;
+    sjt.GetDiscCenter( xfj, yfj,  xrj, yrj);
+
+
+    double a_f2f, b_f2f, c_f2f, c_f2f_;
+    double a_f2r, b_f2r, c_f2r, c_f2r_;
+    double a_r2f, b_r2f, c_r2f, c_r2f_;
+    double a_r2r, b_r2r, c_r2r, c_r2r_;
+
+    calcPerpendicular(
+        xfi, yfi, 
+        xfj, yfj, 
+        a_f2f, b_f2f, c_f2f, c_f2f_
+    );
+    calcPerpendicular(
+        xfi, yfi, 
+        xrj, yrj, 
+        a_f2r, b_f2r, c_f2r, c_f2r_
+    );
+    calcPerpendicular(
+        xri, yri, 
+        xfj, yfj, 
+        a_r2f, b_r2f, c_r2f, c_r2f_
+    );
+    calcPerpendicular(
+        xri, yri, 
+        xrj, yrj, 
+        a_r2r, b_r2r, c_r2r, c_r2r_ 
+    );
+
+    InterPlane plane_i(
+        t, 
+        a_f2f, b_f2f, c_f2f, a_f2r, b_f2r, c_f2r, 
+        a_r2f, b_r2f, c_r2f, a_r2r, b_r2r, c_r2r
+    );
+
+    InterPlane plane_j(
+        t,
+        -a_f2f, -b_f2f, -c_f2f_, -a_r2f, -b_r2f, -c_r2f_, 
+        -a_f2r, -b_f2r, -c_f2r_, -a_r2r, -b_r2r, -c_r2r_
+    );
+    inter_planes[ai].push_back(plane_i);
+    inter_planes[aj].push_back(plane_j);
+    }
+
+}
+
+// ------------- interpolation -------------------//
+void InterpolateInitalGuess(
+    const std::vector<PlanResult<State, Action, double>>& solution, 
+    std::vector<std::vector<OptimizeResult>>& x0_bar, const QpParm& qp_parm){
+
+
+    std::vector<PlanResultShort<State, Action, double>> solution_refine;
+    interpolateXYYaw(solution, solution_refine, qp_parm.num_interpolation);
+    
+    calcVSteerW(solution_refine, x0_bar,  qp_parm.dt);
+}
 
 /**
  * @brief 根据动作生成值
@@ -128,7 +269,7 @@ void action_sample(const int& action,
  * @param n sample number
 
  */
-bool sample_path( const std::vector<PlanResult<State, Action, double>>& solutions, 
+bool interpolateXYYaw( const std::vector<PlanResult<State, Action, double>>& solutions, 
     std::vector<PlanResultShort<State, Action, double>>& solutions_refine,
     const int& n){
     
@@ -165,10 +306,19 @@ bool sample_path( const std::vector<PlanResult<State, Action, double>>& solution
 
 
 // Na: number of agents, Nt: number of maximum sample times.
-bool calcInitGuess(const std::vector<PlanResultShort<State, Action, double>>& solutions,
-std::vector<std::vector<OptimizeResult>>& guesses, size_t Nt, size_t Na,
-double delta_t_
+// The solution is varied time length. The guesses is fixed time length.
+bool calcVSteerW(const std::vector<PlanResultShort<State, Action, double>>& solutions,
+std::vector<std::vector<OptimizeResult>>& guesses, double delta_t_
 ){
+    size_t Na = solutions.size();
+    
+    size_t Nt = 0;
+    for ( size_t a = 0 ; a <Na ; a++){
+        if (solutions[a].states.size() >Nt) {
+            Nt = solutions[a].states.size() ;
+        }
+    }
+
     guesses.resize(Na);
     for ( size_t a = 0 ; a < Na; a++){
         guesses[a].resize(Nt);
@@ -299,82 +449,10 @@ void dumpSolutions(
   out.close();
 }
 
-void dumpCorridors(
-  std::string file_name,
-  const std::vector<std::vector<Corridor>>& corridors,
-  const std::vector<PlanResultShort<State, Action, double>>& solution_refine
-  ){
-  size_t Na = corridors.size();
-  size_t Nt = corridors[0].size();
-  std::ofstream out;
-  out = std::ofstream(file_name);
-  for (size_t a = 0; a < Na; a++){
-    out << "agent" << a<<":" <<std::endl;
-    
-    size_t max_ti = solution_refine[a].states.size();
-    for ( size_t t = 0; t< Nt; t++){
-      double xf, yf, xr, yr;
-      if (t >= max_ti){
-        solution_refine[a].states.back().GetDiscCenter(xf, yf, xr, yr);
-      }
-      else{
-        solution_refine[a].states[t].GetDiscCenter(xf, yf, xr, yr);
-      }
-      out << "  - ["<<xf<<", "<<yf<<", "
-        <<corridors[a][t].xf_min<<", " <<corridors[a][t].xf_max<<
-        ", "<<corridors[a][t].yf_min<<", "<<corridors[a][t].yf_max<<"]\n";
-      out << "  - ["<<xr<<", "<<yr<<", "
-        <<corridors[a][t].xr_min<<", " <<corridors[a][t].xr_max<<
-        ", "<<corridors[a][t].yr_min<<", "<<corridors[a][t].yr_max<<"]\n";
-    }
-
-  }
-  out.close();
-}
-
-void findCollisionPair(
-    const std::vector<std::vector<OptimizeResult>>& guessess,
-    std::vector< std::array<int, 3>>& relative_pair
-){
-    int Na = guessess.size();
-    int Nt = guessess[0].size();
-    double rv = Constants::rv;
-
-    relative_pair.reserve(Na*(Na-1)/2 * Nt);
-    std::cout << "LF: "<< Constants::LF << ". LB: "<< Constants::LB
-        << ". car width: " << Constants::carWidth << std::endl;
-    for ( int t = 0; t < Nt; t++){
-        for ( int i = 0; i < Na - 1; i++){
-            State si(guessess[i][t].x, guessess[i][t].y, guessess[i][t].yaw);
-
-            double xfi, yfi, xri, yri;
-            si.GetDiscCenter(xfi, yfi, xri, yri);
-
-            for (int j = i + 1; j < Na; j++){
-                State sj(guessess[j][t].x, guessess[j][t].y, guessess[j][t].yaw);
-                double xfj, yfj, xrj, yrj;
-
-                sj.GetDiscCenter(xfj, yfj, xrj, yrj);
-
-                if (si.agentCollision(sj)){
-                    relative_pair.emplace_back((std::array<int, 3>{t, i, j}));
-                }
-
-                // if (
-                //     pow(xfi - xfj, 2) +  pow(yfi- yfj, 2) < 4*rv*rv ||
-                //     pow(xfi - xrj, 2) +  pow(yfi- yrj, 2) < 4*rv*rv ||
-                //     pow(xri - xfj, 2) +  pow(yri- yfj, 2) < 4*rv*rv ||
-                //     pow(xri - xrj, 2) +  pow(yri- yrj, 2) < 4*rv*rv 
-                // ){
-                //     relative_pair.emplace_back((std::array<int, 3>{t, i, j}));
-                // }
 
 
-            }
-        }
-    }
-    
-}
+
+// -------------------- neighbor pairs division ----------------------
 
 
 

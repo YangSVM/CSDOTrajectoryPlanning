@@ -15,13 +15,14 @@
 #include <iostream>
 
 #include "hybrid_a_star/types.h"
-#include "hybrid_a_star/motion_planning.h"
+#include "common/motion_planning.h"
 
 #include "pbs/PBS.h"
 
-#include "qp/post_process.h"
-#include "qp/corridor.h"
-#include "qp/dqp_solver.h"
+#include "sqp/common.h"
+#include "sqp/inter_agent_cons.h"
+#include "sqp/corridor.h"
+#include "sqp/dsqp_solver.h"
 #include "util/file_utils.h"
 
 
@@ -42,15 +43,13 @@ int main(int argc, char* argv[]){
 
 		// params for the input instance and experiment settings
 		("input,i", po::value<string>()->required(), "input file for map")
-		("output,o", po::value<string>(), "output file for paths")
-		// ("outputPaths", po::value<string>(), "output file for paths")
-		("agentNum,k", po::value<int>()->default_value(-1), "number of agents")
-		("obstacleNum,n", po::value<int>()->default_value(-1), "number of obstacles")
+		("output,o", po::value<string>(), "output file for trajectories. must end with .yaml .")
+
 		("timeLimit,t", po::value<double>()->default_value(7200), "cutoff time (seconds)")
 		("screen,s", po::value<int>()->default_value(1), "screen option (0: none; 1: results; 2:all)")
-		("stats", po::value<bool>()->default_value(false), "write to files some detailed statistics")
 
-		("sipp", po::value<bool>()->default_value(1), "using SIPP as the low-level solver")
+		("initial_guess", po::bool_switch()->default_value(false), "dump the initial guess.")
+		("corridor", po::bool_switch()->default_value(false), "dump the corridors.")
 		;
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -67,14 +66,15 @@ int main(int argc, char* argv[]){
 	///////////////////////////////////////////////////////////////////////////
   
   double time_limit=vm["timeLimit"].as<double>();
-
+  bool dump_corridor = vm["corridor"].as<bool>();
+  bool dump_initial_guess = vm["initial_guess"].as<bool>();
 
   int screen = vm["screen"].as<int>();
   std::string output_file = vm["output"].as<string>();
   size_t sz_output = output_file.size();
-  std::string output_prefix = output_file.substr(0, sz_output - 5);
+  std::string output_prefix = output_file.substr(0, sz_output - 5); // must end with ".yaml"
 
-  SolutionStatistics stat;
+  SolutionStatistics solution_stat;
 
 
   std::string fname_config(__FILE__);
@@ -84,169 +84,81 @@ int main(int argc, char* argv[]){
   std::string inputFile = vm["input"].as<string>();
   Instance instance(inputFile);
 
-  std::cout << "after read config. constants::deltat "<< Constants::deltat << std::endl;
+  std::cout << "Read config Checking. constants::deltat "<< Constants::deltat << " " 
+    << "Constants::maxClosedSetSize "<< Constants::maxClosedSetSize << std::endl;
 
-
+	// ---------- 1.  search the intial guess ------------------------//
   std::cout << "Searching starts...\n";
  	srand(0);
 	clock_t start = clock();
-  PBS pbs(instance, vm["sipp"].as<bool>(), vm["screen"].as<int>());
+  PBS pbs(instance,  vm["screen"].as<int>());
   // run
   bool success = pbs.solve(time_limit);
 	double runtime_search = (double)(clock() - start)/CLOCKS_PER_SEC  ;
 
-  stat.rt_search = runtime_search;
+  solution_stat.rt_search = runtime_search;
 
 	std::cout << "initial guess search time: " << runtime_search<< std::endl;
-	if ( success ){
-		pbs.savePaths(vm["output"].as<string>());
-	}
-  else{
+	if (! success ){
     exit(-1);   // cannot search a initial guess.
   }
 
   std::vector<Path> solution;
-  success = pbs.getPaths(solution); 
-  double makespan = -1;
-  double flowtime = 0;
-  for ( size_t a = 0 ; a < solution.size(); a++){
-    int ta  = solution[a].states.size() ;
-    if ( ta > makespan){
-      makespan = ta;
-    }
-    flowtime += ta;
-  }
-  double step_sz = Constants::r * Constants::deltat;
-  stat.makespan = makespan * step_sz;
-  stat.flowtime = flowtime * step_sz;
+  pbs.getPaths(solution); 
 
-  // std::ofstream out;
-  // out = std::ofstream(output_file);
-  size_t Na = instance.getDefaultNumberOfAgents();
-  Timer pre_all;
-  if (success) {
-    std::vector<PlanResultShort<State, Action, double>> solution_refine;
-    using namespace libMultiRobotPlanning;
-    QpParm param;
-    readQpSolverConfig(fname_config, param);
-    double preprocess_time=0;
-    Timer ttimer;
+	// ---------- 2.1. deal with inter-vehicle constraints ------------------------//
+  Timer ttimer;
 
-    sample_path(solution, solution_refine, param.num_interpolation);
-    size_t Nt = 0; 
-    for ( size_t ia = 0; ia < Na; ia++){
-      size_t nt_ia = solution_refine[ia].states.size();
-      if (Nt < nt_ia){
-        Nt = nt_ia;
-      }
-    }
-
-    ttimer.stop();
-    preprocess_time += ttimer.elapsedSeconds();
-    cout << "sample time : " << ttimer.elapsedSeconds() << std::endl;
-    ttimer.reset();
-
-    std::vector<std::vector<OptimizeResult>> guesses;
-    std::vector< std::array<int, 3> > relative_pair;
-
-    // 补齐Nt时间的点
-    calcInitGuess(solution_refine, guesses, Nt, Na, param.dt);
-
-    ttimer.stop();
-    preprocess_time += ttimer.elapsedSeconds();
-    cout << "calculate initial v and w time : " << ttimer.elapsedSeconds() << std::endl;
-
-    // dump should not include in the time.
-    dumpSolutions(output_prefix+"_guesses.yaml", guesses, stat);
-
-    ttimer.reset();
-
-
-    double r_trust_region = param.trust_radius;
-    if ( screen >= 3){
-      cout << "trust region radius: " << r_trust_region << std::endl;
-    }
-    bool initial_inter_legal = findRelativeByTrustRegion(
-      solution_refine, r_trust_region, Constants::rv, relative_pair);
-    if ( !initial_inter_legal){
-      stat.search_status = 1; // minor collision.
-    }
-
-    ttimer.stop();
-    preprocess_time += ttimer.elapsedSeconds();
-    cout << "findRelative By Trust Region time : " << ttimer.elapsedSeconds() << std::endl;
-    ttimer.reset();
-
-    cout<< "total preprocess time: " << preprocess_time << std::endl;
-    pre_all.stop();
-    cout<< "total preprocess time v2: " << pre_all.elapsedSeconds() << std::endl;
-    stat.rt_preprocess = preprocess_time;
-
-
-    cout << "param: dt "<<param.dt << ". max v: " << param.max_v
-      << ". max w: "<< param.max_omega << ". trust r: " << param.trust_radius
-      << std::endl;
-
-    Nt = 0; 
-    for (size_t a= 0 ; a< Na; a++){
-        if (guesses[a].size() > Nt){
-            Nt = guesses[a].size();
-        }
-    }
-
-
-    Timer timer_optimize;
-    double time_opt = 0;
-    double time_max_corridor = 0;
-    std::vector<std::vector<Corridor>> corridors;
-    bool  initial_static_legal = calcCorridors(
-        solution_refine, instance.obstacles, instance.dimx, instance.dimy, 
-        corridors, Na, Nt, time_max_corridor
-    );
-    if ( ! initial_static_legal ){
-      stat.search_status = 1;  // minor collision
-    }
-
-    timer_optimize.stop();
-    time_opt += timer_optimize.elapsedSeconds();
-    cout << "calculate total static corridor time : " << timer_optimize.elapsedSeconds() << std::endl;
-    cout << "calculate decentralized static corridor time : " << time_max_corridor << std::endl;
-    // test
-    dumpCorridors(output_prefix+"_corridor.yaml" , corridors, solution_refine);
-    timer_optimize.reset();
-
-    std::vector<std::vector<OptimizeResult>> optimize_res;
-    int logger_level = vm["screen"].as<int>();  // 0 error . 1 warning; 2 info; 3 debug.
-    SolverDQP solver(Na, Nt, optimize_res, guesses, relative_pair, corridors, 
-      instance.dimx, instance.dimy, instance.obstacles, param, logger_level);
-    timer_optimize.stop();
-    time_opt += timer_optimize.elapsedSeconds();
-    // time_opt += solver.getMaxOfRuntimes();
-    
-    stat.solver_status = solver.getSolverStatus();
-    // stat.search_status = solver.getSearchStatus();
-    stat.rt_max_optimization = solver.getMaxOfRuntimes() + time_max_corridor;
-
-    stat.rt_optimization = time_opt;
-    stat.runtime = stat.rt_search + stat.rt_preprocess + stat.rt_max_optimization;
-    // maybe change to the pbs path make span number.
-    // stat.makespan = optimize_res.front().size() - 1;
-
-    cout << "qp solver time: " << stat.rt_optimization << std::endl;
-    cout << "qp fully decentralized solver time: " << stat.rt_max_optimization << std::endl;
-    cout << "search time: " << stat.rt_search << std::endl;
-    
-    cout << "number of iterations: ";
-    for ( auto& num_iter : solver.num_iterations){
-      cout << num_iter << " ";
-    }
-    cout << std::endl;
-
-    stat.makespan = Nt* param.dt;
-    stat.flowtime = Nt* param.dt * Na;
-
-    dumpSolutions(output_file, optimize_res, stat);
+  QpParm param;
+  readQpSolverConfig(fname_config, param);
   
-    return 1;
-}
+  vector<vector<OptimizeResult>> x0_bar; // interpolated intial guess. $x_0\bar$
+  InterpolateInitalGuess(solution, x0_bar, param);
+
+  std::vector< std::array<int, 3> > neighbor_pairs;  // NPairs. list of tuple <ai, aj, t>
+  bool initial_inter_legal = findNeighborPairsByTrustRegion(
+      x0_bar, param.r_trust, Constants::rv, neighbor_pairs);
+  
+  // record the initial guess as illegal if colliding.
+  if ( !initial_inter_legal){
+    solution_stat.search_status = 1; // recorded as minor collision.
+  }
+
+  vector<vector<InterPlane>> inter_planes; // neighbor pair division planes.
+  calcEqualInterPlanes(x0_bar, neighbor_pairs, inter_planes);
+
+  ttimer.stop();
+  solution_stat.rt_preprocess = ttimer.elapsedSeconds();
+
+  // dump should not include in the time.
+  if ( dump_initial_guess){
+    dumpSolutions(output_prefix+"_guesses.yaml", x0_bar, solution_stat);
+  }
+
+	// ---------- 2.2.  run the DSQP  ------------------------//
+  ttimer.reset();
+  std::vector<std::vector<OptimizeResult>> optimize_res;
+  int logger_level = vm["screen"].as<int>();  // 0 error . 1 warning; 2 info; 3 debug.
+  SolverDSQP solver(optimize_res, x0_bar,  inter_planes, 
+    instance.dimx, instance.dimy, instance.obstacles, param, logger_level);
+  ttimer.stop();
+
+  // record the time and solution.
+  if ( ! solver.get_initial_static_legal() ){
+    solution_stat.search_status = 1;  // minor collision
+  }
+  solution_stat.rt_optimization = ttimer.elapsedSeconds();
+  solution_stat.solver_status = solver.getSolverStatus();
+  solution_stat.rt_max_optimization = solver.getMaxOfRuntimes() ;
+  solution_stat.runtime = solution_stat.rt_search +\
+  solution_stat.rt_preprocess + solution_stat.rt_max_optimization;
+
+  if (dump_corridor){
+    dumpCorridors(output_prefix+"_guesses.yaml", solver.corridors, x0_bar);
+  }
+  
+  dumpSolutions(output_file, optimize_res, solution_stat);
+  
+  
+  return 1;
 }

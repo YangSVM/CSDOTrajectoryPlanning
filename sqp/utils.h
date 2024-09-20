@@ -1,36 +1,34 @@
 #pragma once
-#define EIGEN_USE_MKL_ALL
+// #define EIGEN_USE_MKL_ALL
+#include <eigen3/Eigen/Sparse>
+#include <eigen3/Eigen/Core>
 #include "osqp/osqp.h"
-#include "hybrid_a_star/motion_planning.h"
-#include "qp/corridor.h"
+#include "sqp/common.h"
+#include "common/motion_planning.h"
+#include "sqp/corridor.h"
 #include "hybrid_a_star/timer.h"
-#include "qp/post_process.h"
+#include "hybrid_a_star/planresult.h"
+#include "sqp/inter_agent_cons.h"
 
 using Eigen::VectorXd;
 using Eigen::VectorXi;
 using Eigen::MatrixXd;
 using Eigen::ArrayXd;
-using std::vector;
 typedef Eigen::SparseMatrix<double> SpMat;
 // triplet. 3 element tuple. (row_id, col_id, value)
 typedef Eigen::Triplet<double> Triplet;  
 using libMultiRobotPlanning::OptimizeResult;
 using libMultiRobotPlanning::Corridor;
+using  libMultiRobotPlanning::QpParm;
+using libMultiRobotPlanning::PlanResultShort;
 
-struct QpParm{
-  double trust_radius;
-  double max_omega;
-  double max_v;
-  double max_iter;
-  double delta_solution_threshold;
-  double max_violation;
-
-  int osqp_max_iter;
-
-  double dt;
-  int num_interpolation;
-};
 void readQpSolverConfig(std::string fname_config, QpParm& param);
+
+void dumpCorridors(
+  std::string file_name,
+  const vector<vector<Corridor>>& corridors,
+  const vector<vector<OptimizeResult>>& x0_bar
+);
 
 void extractResult(
   size_t num_agent, size_t max_time, 

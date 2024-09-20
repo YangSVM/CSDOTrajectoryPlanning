@@ -17,13 +17,13 @@
 #include <iostream>
 
 #include "hybrid_a_star/types.h"
-#include "hybrid_a_star/motion_planning.h"
+#include "common/motion_planning.h"
 
 #include "pbs/PBS.h"
 
-#include "qp/post_process.h"
-#include "qp/corridor.h"
-#include "qp/utils.h"
+#include "sqp/inter_agent_cons.h"
+#include "sqp/corridor.h"
+#include "sqp/utils.h"
 #include "util/file_utils.h"
 
 
@@ -48,14 +48,46 @@ void readQpSolverConfig(std::string fname_config, QpParm& param){
   param.max_violation = car_config["max_violation"].as<double>();
   param.osqp_max_iter = car_config["osqp_max_iter"].as<int>();
 
-  param.trust_radius = car_config["trust_radius"].as<double>();
+  param.r_trust = car_config["r_trust"].as<double>();
   param.num_interpolation = car_config["num_interpolation"].as<int>();
   
   double decelerate_factor = car_config["decelerate_factor"].as<double>();
   param.dt = Constants::r * Constants::deltat / param.max_v 
       / (param.num_interpolation + 1 ) / decelerate_factor;
-
+  
+  param.fixed_corridor = car_config["fixed_corridor"].as<bool>();
 }
+
+
+void dumpCorridors(
+  std::string file_name,
+  const std::vector<std::vector<Corridor>>& corridors,
+  const std::vector<vector<OptimizeResult>>& x0_bar
+  ){
+  size_t Na = corridors.size();
+  size_t Nt = corridors[0].size();
+  std::ofstream out;
+  out = std::ofstream(file_name);
+  for (size_t a = 0; a < Na; a++){
+    out << "agent" << a<<":" <<std::endl;
+    
+    // size_t max_ti = solution_refine[a].states.size();
+    for ( size_t t = 0; t< Nt; t++){
+      double xf, yf, xr, yr;
+      State state(x0_bar[a][t].x, x0_bar[a][t].y, x0_bar[a][t].yaw);
+      state.GetDiscCenter(xf,yf,xr,yr);
+      out << "  - ["<<xf<<", "<<yf<<", "
+        <<corridors[a][t].xf_min<<", " <<corridors[a][t].xf_max<<
+        ", "<<corridors[a][t].yf_min<<", "<<corridors[a][t].yf_max<<"]\n";
+      out << "  - ["<<xr<<", "<<yr<<", "
+        <<corridors[a][t].xr_min<<", " <<corridors[a][t].xr_max<<
+        ", "<<corridors[a][t].yr_min<<", "<<corridors[a][t].yr_max<<"]\n";
+    }
+
+  }
+  out.close();
+}
+
 
 //  cfg. (Na, 6). the start and end state of the problem (configuration).
 void extractResult(

@@ -1,9 +1,7 @@
 #pragma once
 
-#include "hybrid_a_star/hybrid_astar.h"
-#include "hybrid_a_star/motion_planning.h"
-#include "qp/post_process.h"
-
+#include "common/motion_planning.h"
+#include "hybrid_a_star/planresult.h"
 
 void dumpPlanResults(
     std::string fname_output, 

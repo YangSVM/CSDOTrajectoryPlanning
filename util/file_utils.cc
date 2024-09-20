@@ -1,9 +1,9 @@
 #include "util/file_utils.h"
-#include "hybrid_a_star/motion_planning.h"
+#include "common/motion_planning.h"
 #include <yaml-cpp/yaml.h>
 #include <boost/algorithm/string/replace.hpp>
 #include <iomanip>      // std::setprecision
-
+#include <fstream>
 
 
 void dumpPlanResults(

@@ -1,7 +1,6 @@
-#include "hybrid_a_star/motion_planning.h"
+#include "common/motion_planning.h"
 #include <yaml-cpp/yaml.h>
 #include <iostream>
-#include <boost/algorithm/string/replace.hpp>
 
 
 // [m] --- The minimum turning radius of the vehicle
@@ -21,6 +20,7 @@ float Constants::mapResolution = 2.0;
 float Constants::xyResolution = r * deltat;
 // float Constants::xyResolution = 0.05;
 float Constants::yawResolution = deltat;
+float Constants::maxClosedSetSize = 1e5;
 
 // width of car
 float Constants::carWidth = 2.0 ;
@@ -42,7 +42,7 @@ float Constants::constraintWaitTime = 2;
 float Constants::speed = 1;   // 正常行驶速度
 float Constants::t_inc = deltat * r /speed;  // 每个采样点时间的时间间隔
 
-double Constants::dubinsShotDistance = 100;
+double Constants::dubinsShotDistanceSquare = 100;
 // R = 3, 6.75 DEG。6个采样动作. 前(中右左)，后(中右左)
 std::vector<double> Constants::dx = {r * deltat, r* sin(deltat),  r* sin(deltat),
                      -r* deltat, -r* sin(deltat), -r* sin(deltat)};
@@ -71,6 +71,7 @@ void readAgentConfig(std::string fname_config) {
   // change to set calcIndex resolution
   Constants::xyResolution = Constants::r * Constants::deltat;
   Constants::yawResolution = Constants::deltat;
+  Constants::maxClosedSetSize = car_config["maxClosedSetSize"].as<double>();
 
   Constants::carWidth = car_config["carWidth"].as<double>();
   Constants::LF = car_config["LF"].as<double>();

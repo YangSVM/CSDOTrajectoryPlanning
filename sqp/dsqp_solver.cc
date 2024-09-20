@@ -1,37 +1,18 @@
-#include "qp/dqp_solver.h"
+#include "sqp/dsqp_solver.h"
 #include "hybrid_a_star/types.h"
-#include "hybrid_a_star/motion_planning.h"
+#include "common/motion_planning.h"
 
 #include "pbs/PBS.h"
 
-#include "qp/post_process.h"
-#include "qp/corridor.h"
-#include "qp/utils.h"
+#include "sqp/inter_agent_cons.h"
+#include "sqp/corridor.h"
+#include "sqp/utils.h"
 #include "util/file_utils.h"
 
 using namespace libMultiRobotPlanning;
 Eigen::IOFormat CleanFmt(4, 0, ", ", "\n", "[", "]");
+using std::vector;
 
-
-// TODO 是否可以先聚合成矩阵，再采用矩阵操作进行计算
-// 计算垂直平分线
-// return ax1+by1 + c <= 0
-void calcPerpendicular(double x1, double y1, double x2, double y2,
-  double& a, double&b, double& c1, double& c2){
-    double rv = Constants::rv;
-    a = x2 - x1;
-    b = y2 - y1;
-    double c = (x1*x1 + y1*y1 - x2*x2 - y2*y2)/2;
-    // TODO 不知道是否正确
-    double d = sqrt( pow(x1-x2, 2) + pow(y1-y2, 2) );
-    c1 = c + rv * d;
-    c2 = c - rv *d;
-    double x0 = (x1+x2)/2;
-    double y0 = (y1+y2)/2;
-    assert( fabs( a*x0 + b*y0 + c ) < 1e-3); // the plane pass the point
-    assert ( a * x1 + b *y1 +c < 0 ); // 
-    assert ( a * x2 + b *y2 +c > 0 ); // 
-}
 
 // class T must have attribution t.
 // calculate the maximum constraint for one col
@@ -52,7 +33,7 @@ int calcMaxTime(const vector<T>&  planes, int Nt){
   return max_t;
 }
 
-bool SolverDQP::calcIndividualQP(
+bool SolverDSQP::calcIndividualSQP(
   int a, 
   vector<OptimizeResult>& solution,
   const std::vector<std::vector<Corridor>>& corridors,
@@ -157,7 +138,7 @@ bool SolverDQP::calcIndividualQP(
 
 
     //  trust region
-    calcTrustRegionConstraint(M, ub, lb, si, param.trust_radius, x_trust, y_trust);
+    calcTrustRegionConstraint(M, ub, lb, si, param.r_trust, x_trust, y_trust);
     si += n_trust;
 
     // maximum control constraints
@@ -289,7 +270,7 @@ bool SolverDQP::calcIndividualQP(
   return this->solve_status;
 }
 
-bool SolverDQP::isFeasible(){
+bool SolverDSQP::isFeasible(){
   // input : solution0; 
   // 思路1：把所有的约束重新过一次？看看是否出了上下界？
 
@@ -297,7 +278,7 @@ bool SolverDQP::isFeasible(){
 }
 
 // change the dense to osqp csc format.
-int SolverDQP::solveOSQP(
+int SolverDSQP::solveOSQP(
   int a,
   VectorXd& solution_vec,
   SpMat& M, const VectorXd& ub, const VectorXd& lb,
@@ -431,7 +412,7 @@ int SolverDQP::solveOSQP(
   return osqp_status;
 }
 
-bool SolverDQP::ExtractAndSimplify(
+bool SolverDSQP::ExtractAndSimplify(
   const VectorXd& solution_vec, 
   ArrayXd& x0, ArrayXd& y0, ArrayXd& yaw0, ArrayXd& steer0, 
   ArrayXd& v0_, ArrayXd& w0_,
@@ -451,7 +432,7 @@ bool SolverDQP::ExtractAndSimplify(
   return true;
 }
 
-void SolverDQP::extractSingleSolutionVec2OptRes(
+void SolverDSQP::extractSingleSolutionVec2OptRes(
   vector<OptimizeResult>& solution,
   const  VectorXd& solution_vec
   ){
@@ -494,7 +475,7 @@ int x_start = 0;
 }
 
 // extract the initial variable of agent a.
-void SolverDQP::getAgentInitGuess(
+void SolverDSQP::getAgentInitGuess(
   int a, ArrayXd& x0, ArrayXd& y0, ArrayXd& yaw0, ArrayXd& steer0, 
   ArrayXd& v0_, ArrayXd& w0_){
   
@@ -507,7 +488,7 @@ void SolverDQP::getAgentInitGuess(
   w0_ = w.row(a).array();
 }
 
-void SolverDQP::getAgentShortState(
+void SolverDSQP::getAgentShortState(
   const ArrayXd& x0, const ArrayXd& y0, 
   const ArrayXd& yaw0, const ArrayXd& steer0,
   ArrayXd& x0_, ArrayXd& y0_, ArrayXd& yaw0_, ArrayXd& steer0_)
@@ -520,7 +501,7 @@ void SolverDQP::getAgentShortState(
 
 }
 
-void SolverDQP::calcKineConstraint(
+void SolverDSQP::calcKineConstraint(
   int a, SpMat& M, VectorXd& ub, VectorXd& lb, int si,
   const ArrayXd& x0, const ArrayXd& y0, const ArrayXd& yaw0, 
   const ArrayXd& steer0, const ArrayXd& v0_, const ArrayXd& w0_,
@@ -620,7 +601,7 @@ void SolverDQP::calcKineConstraint(
 
 }
 
-void SolverDQP::calcCfgConstraint(
+void SolverDSQP::calcCfgConstraint(
   int a, SpMat& M, VectorXd& ub, VectorXd& lb, int si, 
   const vector<double>& cfg
 ){
@@ -692,7 +673,7 @@ void extractAgentsCorridor(
 }
 
 
-void  SolverDQP::updateCorridor(
+void  SolverDSQP::updateCorridor(
   const VectorXd& solution_vec ,const  size_t& Nt, int a,
   double dimx, double dimy, const std::unordered_set<Location>& obstacles,
   vector<double>& lb,
@@ -737,7 +718,7 @@ void  SolverDQP::updateCorridor(
 
 }
 
-void SolverDQP::calcCorridorConstraint(
+void SolverDSQP::calcCorridorConstraint(
   int a, SpMat& M, VectorXd& ub, VectorXd& lb, int si,
   const std::vector<std::vector<Corridor>>& corridors,
   const ArrayXd& x0, const ArrayXd& y0, 
@@ -833,7 +814,7 @@ void SolverDQP::calcCorridorConstraint(
   
 }
 
-void SolverDQP::calcTrustRegionConstraint(
+void SolverDSQP::calcTrustRegionConstraint(
   SpMat& M, VectorXd& ub, VectorXd& lb, int si , double r_trust,
   const ArrayXd& x0, const ArrayXd& y0
   ){
@@ -859,7 +840,7 @@ void SolverDQP::calcTrustRegionConstraint(
   }
 }
 
-void SolverDQP::calcMaxCtrlAndSteerConstraint(
+void SolverDSQP::calcMaxCtrlAndSteerConstraint(
   SpMat& M, VectorXd& ub, VectorXd& lb, int si , const  QpParm& param)
 {
   double v_max = param.max_v;
@@ -915,7 +896,7 @@ void calcInterIndex( const int& t,
 }
 
 
-void SolverDQP::calcInterVehicleConstraint(
+void SolverDSQP::calcInterVehicleConstraint(
   int a, SpMat& M, VectorXd& ub, VectorXd& lb, int si,
   // const ArrayXd& sc0,
   const std::vector< InterPlane >& inter_planes,
@@ -1000,85 +981,35 @@ void SolverDQP::calcInterVehicleConstraint(
   }
 }
 
-void SolverDQP::calcEqualInterPlanes(
-  const ArrayXd& xfs0, const ArrayXd& yfs0, 
-  const ArrayXd& xrs0, const ArrayXd& yrs0,
-  const std::vector<std::array<int, 3>>& relative_pair,
-  vector<vector<InterPlane>>& inter_planes
-){
-  inter_planes.resize(Na);
-
-  for ( auto & p :relative_pair){
-    int t = p[0];
-    int ai = p[1];
-    int aj = p[2];
-
-    int ai_index = ai*Nt + t;
-    int aj_index = aj*Nt + t;
 
 
-    double a_f2f, b_f2f, c_f2f, c_f2f_;
-    double a_f2r, b_f2r, c_f2r, c_f2r_;
-    double a_r2f, b_r2f, c_r2f, c_r2f_;
-    double a_r2r, b_r2r, c_r2r, c_r2r_;
-
-    calcPerpendicular(
-      xfs0[ai_index], yfs0[ai_index], 
-      xfs0[aj_index], yfs0[aj_index], 
-      a_f2f, b_f2f, c_f2f, c_f2f_
-    );
-    calcPerpendicular(
-      xfs0[ai_index], yfs0[ai_index], 
-      xrs0[aj_index], yrs0[aj_index], 
-      a_f2r, b_f2r, c_f2r, c_f2r_
-    );
-    calcPerpendicular(
-      xrs0[ai_index], yrs0[ai_index], 
-      xfs0[aj_index], yfs0[aj_index], 
-      a_r2f, b_r2f, c_r2f, c_r2f_
-    );
-    calcPerpendicular(
-      xrs0[ai_index], yrs0[ai_index], 
-      xrs0[aj_index], yrs0[aj_index], 
-      a_r2r, b_r2r, c_r2r, c_r2r_ 
-    );
-
-    InterPlane plane_i(
-      t, 
-      a_f2f, b_f2f, c_f2f, a_f2r, b_f2r, c_f2r, 
-      a_r2f, b_r2f, c_r2f, a_r2r, b_r2r, c_r2r
-    );
-
-    InterPlane plane_j(
-      t,
-      -a_f2f, -b_f2f, -c_f2f_, -a_r2f, -b_r2f, -c_r2f_, 
-      -a_f2r, -b_f2r, -c_f2r_, -a_r2r, -b_r2r, -c_r2r_
-    );
-    inter_planes[ai].push_back(plane_i);
-    inter_planes[aj].push_back(plane_j);
-  }
-
-}
-
-
-SolverDQP::SolverDQP(
-  size_t num_agent, size_t max_time, 
+SolverDSQP::SolverDSQP(
   vector<vector<OptimizeResult>>& solutions,
-  const vector<vector<OptimizeResult>>& guesses,
-  const std::vector<std::array<int, 3>>& relative_pair,
-  const vector<vector<Corridor>>& corridors,
+  const vector<vector<OptimizeResult>>& x0_bar,
+  const vector<vector<InterPlane>>& inter_planes,
   double dimx, double dimy,
   const std::unordered_set<Location>& obstacles,
   const QpParm& param,
   int logger_level
 ): dimx(dimx), dimy(dimy), m_obstacles(obstacles), m_param(param),
-Na(num_agent), Nt(max_time), n_vars(4*Nt + 2*(Nt-1)),
+Na( x0_bar.size()), Nt( x0_bar[0].size()),
+n_vars(4*Nt + 2*(Nt-1)),
   solution0(n_vars, 1), D(Nt * 4, 3*Nt ), E( Nt * 4),
   x(Na, Nt), y(Na, Nt), yaw(Na, Nt), steer(Na, Nt), v(Na, Nt-1), w(Na, Nt-1),  
   elbs( Na*Nt * 4 ), eubs( Na*Nt * 4 ),
   solve_status(true),
   logger_level(logger_level),CleanFmt(4, 0, ", ", "\n", "[", "]")
 {
+ 
+  double time_max_corridor;
+
+  // now just fix the corridors.
+  initial_static_legal = calcCorridors(
+    x0_bar, obstacles, dimx, dimy, 
+    corridors, Na, Nt, time_max_corridor
+  );
+
+
   Timer timer_stat;
   double time_other = 0;
   solutions.resize(Na);
@@ -1086,7 +1017,7 @@ Na(num_agent), Nt(max_time), n_vars(4*Nt + 2*(Nt-1)),
   // 把初始解转成 eigen向量。后面
   
   // all the timestep need to be the same. just check the last element for simplicity.
-  assert(guesses.back().size() == max_time);
+  assert(x0_bar.back().size() == Nt);
 
   // s_k = (x,y,yaw,phi). phi: front wheel angle.
   n_kine =  4*(Nt-1) ;  // s_{k+1} =  A s_k + B u_k * dt. k=0~Nt-1
@@ -1111,7 +1042,7 @@ Na(num_agent), Nt(max_time), n_vars(4*Nt + 2*(Nt-1)),
   // MatrixXd w(Na, Nt - 1);
   vector<double> cfg;
 
-  extractResult(Na, Nt, guesses, x, y, yaw, steer, v, w, cfg);
+  extractResult(Na, Nt, x0_bar, x, y, yaw, steer, v, w, cfg);
   extractAgentsCorridor(Na, Nt, corridors, elbs, eubs);
 
   // 统一计算所有轨迹的双盘位置
@@ -1130,8 +1061,6 @@ Na(num_agent), Nt(max_time), n_vars(4*Nt + 2*(Nt-1)),
   ArrayXd sc0(4*Na*Nt);  // state circles of all agents.
   sc0 << xfs0, yfs0, xrs0, yrs0;
  
-  vector<vector<InterPlane>> inter_planes;
-  calcEqualInterPlanes(xfs0, yfs0, xrs0, yrs0, relative_pair, inter_planes);
 
   if (logger_level >= 2){
     timer.stop();
@@ -1148,7 +1077,7 @@ Na(num_agent), Nt(max_time), n_vars(4*Nt + 2*(Nt-1)),
     timer_stat.reset();
 
     vector<OptimizeResult> solution; 
-    solve_status = calcIndividualQP(a, solution, corridors, inter_planes, cfg, param);
+    solve_status = calcIndividualSQP(a, solution, corridors, inter_planes, cfg, param);
     if ( !solve_status ){
       // break;
       continue;
@@ -1177,6 +1106,7 @@ Na(num_agent), Nt(max_time), n_vars(4*Nt + 2*(Nt-1)),
         worst_status = p.second ;
       }
     }
+
     // define in  usr/local/include/osqp/constants.h
     // status: 2. solved inaccurate; -3: primal infeasible; 4: primal infeasible inaccurate
     this->solve_status = worst_status;
@@ -1190,5 +1120,5 @@ Na(num_agent), Nt(max_time), n_vars(4*Nt + 2*(Nt-1)),
   timer_stat.stop();
   time_other += timer_stat.elapsedSeconds();
   max_individual_opt_runtime += time_other;
-
+  max_individual_opt_runtime += time_max_corridor;
 }

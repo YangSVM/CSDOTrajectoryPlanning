@@ -50,19 +50,12 @@ include_directories(
   ${Boost_INCLUDE_DIRS}
 )
 
-file(GLOB SOURCES  "hybrid_a_star/*.cc" "util/*.cc")
+file(GLOB SOURCES  "common/*.cc" "hybrid_a_star/*.cc" "util/*.cc")
 file(GLOB PBS_SOURCES  "pbs/*.cc")
 
 # Examples
-add_executable(sp 
-  ${SOURCES}
-  sequantial_planner.cc
-)
 
-target_link_libraries(sp ${Boost_LIBRARIES}   yaml-cpp   ${OMPL_LIBRARIES}
-)
-
-
+# coarse behavior searching front end
 add_executable(pbs
   ${SOURCES}
   ${PBS_SOURCES}
@@ -72,8 +65,9 @@ add_executable(pbs
 target_link_libraries(pbs ${Boost_LIBRARIES}   yaml-cpp   ${OMPL_LIBRARIES}
 )
 
-file(GLOB QP_SOURCES  "qp/*.cc")
-# CL_ECBS-nlp
+file(GLOB QP_SOURCES  "sqp/*.cc")
+
+# CL_PBS-DSQP
 add_executable(csdo
   ${SOURCES}  
   ${PBS_SOURCES}

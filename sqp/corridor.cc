@@ -1,10 +1,11 @@
 #include <vector>
 #include <math.h>
 #include <assert.h>
-#include "qp/corridor.h"
+#include "sqp/corridor.h"
 #include "hybrid_a_star/planresult.h"
-#include "hybrid_a_star/motion_planning.h"
+#include "common/motion_planning.h"
 #include "hybrid_a_star/timer.h"
+#include "sqp/inter_agent_cons.h"
 
 namespace libMultiRobotPlanning{
 
@@ -19,121 +20,7 @@ State getState(size_t agentIdx,
   return solution[agentIdx].states.back();
 }
 
-void findRelativePair(
-    const std::vector<std::vector<Corridor>>& corridors,
-    std::vector< std::array<int, 3>>& relative_pair
-){
-    int Na = corridors.size();
-    int Nt = corridors[0].size();
 
-    relative_pair.reserve(Na*(Na-1)/2 * Nt);
-    double rv = Constants::rv;
-
-    for ( int t = 0; t < Nt; t++){
-        for ( int i = 0; i < Na - 1; i++){
-            auto ci = corridors[i][t];
-            Box bif(ci.xf_min, ci.yf_min, ci.xf_max, ci.yf_max);
-            Box bir(ci.xr_min, ci.yr_min, ci.xr_max, ci.yr_max);
-            for (int j = i + 1; j < Na; j++){
-                auto cj = corridors[j][t];
-                Box bjf(cj.xf_min, cj.yf_min, cj.xf_max, cj.yf_max);
-                Box bjr(cj.xr_min, cj.yr_min, cj.xr_max, cj.yr_max);
-
-                if (bif.isOverlap(bjf, 2*rv) || bif.isOverlap(bjr, 2*rv)||
-                    bir.isOverlap(bjf, 2*rv) || bir.isOverlap(bjr, 2*rv)
-                    )
-                {
-                    // is relative
-                    relative_pair.emplace_back(std::array<int, 3>{t, i, j});
-                }
-
-            }
-        }
-    }
-
-}
-
-bool  findRelativeByTrustRegion(
-    const std::vector<PlanResultShort<State, Action, double>>& solution,
-    const double& r, // trust region radius
-    const double& rv,
-    std::vector< std::array<int, 3>>& relative_pair
-){
-    bool initial_inter_success = true;
-    int Na = solution.size();
-    // get the max time
-    int Nt = 0;
-    for ( size_t i = 0 ; i < Na; i++){
-        if (solution[i].states.size()> Nt) Nt = solution[i].states.size();
-    }
-
-    relative_pair.reserve(Na*(Na-1)/2 * Nt);
-    // double rv = Constants::rv;
-
-    for ( int t = 0; t < Nt; t++){
-        for ( int i = 0; i < Na - 1; i++){
-            State si = getState(i, solution, t);
-
-
-            for (int j = i + 1; j < Na; j++){
-                State sj = getState(j, solution, t);
-                double d = si.agentDistance(sj);
-
-                if (d < 2*sqrt(2)*r)  
-                {                
-                    // is relative
-                    relative_pair.emplace_back(std::array<int, 3>{t, i, j});
-                    if ( d < 2 * rv){
-                        initial_inter_success = false;
-                    }
-                }
-
-            }
-        }
-    }
-    return initial_inter_success;
-
-}
-
-// output: agent * agent 
-void  findRelativeMatrixByTrustRegion(
-    const std::vector<PlanResultShort<State, Action, double>>& solution,
-    const double& r, // trust region radius
-    std::vector< std::vector< std::array<int, 2>>>& relative_pair
-){
-    int Na = solution.size();
-    // get the max time
-    int Nt = -1;
-    for ( size_t i = 0 ; i < Na; i++){
-        if (solution[i].states.size()> Nt) Nt = solution[i].states.size();
-    }
-    assert( Nt > 0 && "cannot deal with empty solution.");
-
-    relative_pair.resize(Na);
-
-    double rv = Constants::rv;
-
-    for ( int t = 0; t < Nt; t++){
-        for ( int i = 0; i < Na - 1; i++){
-            State si = getState(i, solution, t);
-
-
-            for (int j = i + 1; j < Na; j++){
-                State sj = getState(j, solution, t);
-                double d = si.agentDistance(sj);
-
-                if (d < 2*sqrt(2)*r)  // 
-                {
-                    // is relative
-                    relative_pair[i].push_back(std::array<int, 2>{t,  j});
-                    relative_pair[j].push_back(std::array<int, 2>{t,  i});
-                }
-
-            }
-        }
-    }
-
-}
 
 bool isPointOutOfMap(double x, double y, double dimx, double dimy){
     double rv = Constants::rv;
@@ -275,7 +162,7 @@ BoxStatus generateBox(
 // front: xmin xmax ymin ymax, rear: xmin xmax ymin ymax
 // initial guess status.
 bool calcCorridors(
-    const std::vector<PlanResultShort<State, Action, double>>& solutions,
+  const vector<vector<OptimizeResult>>& guesses,
     const std::unordered_set<Location>& obstacles,
     double dimx, double dimy, 
     std::vector<std::vector<Corridor>>& corridors,
@@ -292,16 +179,13 @@ bool calcCorridors(
      
     for (size_t a = 0; a < Na; a ++){
         timer.reset();
-        size_t s_size = solutions[a].states.size();
+
 
         for (size_t i = 0; i < Nt; i++){            
             double xf, yf, xr, yr;            
-            if (i < s_size){
-                solutions[a].states[i].GetDiscCenter(xf,yf,xr,yr);
-            }
-            else{
-                solutions[a].states.back().GetDiscCenter(xf,yf,xr,yr);
-            }
+            State si(guesses[a][i].x, guesses[a][i].y, guesses[a][i].yaw);
+            si.GetDiscCenter(xf,yf,xr,yr);
+
             Box boxf(0,0,0,0), boxr(0,0,0,0);
             BoxStatus status_boxf = generateBox(dimx, dimy, xf, yf, obstacles, boxf);
             BoxStatus status_boxr  = generateBox(dimx, dimy, xr, yr, obstacles, boxr);
