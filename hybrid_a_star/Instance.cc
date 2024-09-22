@@ -77,8 +77,9 @@ void Instance::printAgents() const
 bool Instance::startAndGoalValid(
   const std::vector<State> &starts, const std::vector<State>& goals) {
   assert(goals.size() == starts.size());
-  for (size_t i = 0; i < goals.size(); i++)
-    for (size_t j = i + 1; j < goals.size(); j++) {
+  size_t Na = goals.size();
+  for (size_t i = 0; i < Na; i++){
+    for (size_t j = i + 1; j < Na; j++) {
       if (goals[i].agentCollision(goals[j])) {
         std::cout << "ERROR: Goal point of " << i  << " & "
                   << j  << " collide!\n";
@@ -90,5 +91,36 @@ bool Instance::startAndGoalValid(
         return false;
       }
     }
+  }
+  // checking the violation of staic obstacles.
+  double rv = Constants::rv;
+  for ( size_t a = 0 ; a < Na; a++){
+    for ( auto obs : obstacles){
+      double xf, xr, yf, yr;
+      starts[a].GetDiscCenter(xf,yf,xr,yr);
+      if (
+        pow( obs.x - xf , 2) + pow( obs.y - yf, 2)  - pow( rv + obs.r, 2) <0 ||
+        pow( obs.x - xr , 2) + pow( obs.y - yr, 2)  - pow( rv + obs.r, 2) <0 
+      ){
+        std::cout <<"warning. Maybe inaccurate becasue the doule circle.\n ";
+        std::cout << "agent " << a << " start and obstacle " << obs <<std::endl;
+        if ( starts[a].obsCollision(obs)){
+          return false;
+        }
+      }
+      goals[a].GetDiscCenter(xf, yf, xr, yr);
+      if (
+        pow( obs.x - xf , 2) + pow( obs.y - yf, 2)  - pow( rv + obs.r, 2) <0 ||
+        pow( obs.x - xr , 2) + pow( obs.y - yr, 2)  - pow( rv + obs.r, 2) <0 
+        ){
+        std::cout <<"warning. Maybe inaccurate becasue the doule circle.\n ";
+        std::cout << "agent " << a << " goal and obstacle " << obs <<std::endl;
+        if ( goals[a].obsCollision(obs)){
+          return false;
+        }
+      }
+    }
+  }
+
   return true;
 }

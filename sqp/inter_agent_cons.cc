@@ -57,7 +57,7 @@ void calcPerpendicular(double x1, double y1, double x2, double y2,
     a = x2 - x1;
     b = y2 - y1;
     double c = (x1*x1 + y1*y1 - x2*x2 - y2*y2)/2;
-    // TODO 不知道是否正确
+
     double d = sqrt( pow(x1-x2, 2) + pow(y1-y2, 2) );
     c1 = c + rv * d;
     c2 = c - rv *d;
@@ -141,9 +141,14 @@ void calcEqualInterPlanes(
 
 // ------------- interpolation -------------------//
 void InterpolateInitalGuess(
-    const std::vector<PlanResult<State, Action, double>>& solution, 
-    std::vector<std::vector<OptimizeResult>>& x0_bar, const QpParm& qp_parm){
+    std::vector<PlanResult<State, Action, double>>& solution, 
+    std::vector<std::vector<OptimizeResult>>& x0_bar, const std::vector<State>& goals,
+    const QpParm& qp_parm){
 
+    // enforce all the paths end with goals precisely.
+    for ( size_t a = 0 ; a < goals.size(); a++ ){
+        solution[a].states.back().first = goals[a];
+    }
 
     std::vector<PlanResultShort<State, Action, double>> solution_refine;
     interpolateXYYaw(solution, solution_refine, qp_parm.num_interpolation);

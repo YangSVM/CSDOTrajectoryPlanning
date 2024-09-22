@@ -46,7 +46,8 @@ int main(int argc, char* argv[]){
 		("output,o", po::value<string>(), "output file for trajectories. must end with .yaml .")
 
 		("timeLimit,t", po::value<double>()->default_value(7200), "cutoff time (seconds)")
-		("screen,s", po::value<int>()->default_value(1), "screen option (0: none; 1: results; 2:all)")
+		("screen,s", po::value<int>()->default_value(1),
+          "screen option (0: error; 1: warning; 2:info; 3:debug)")
 
 		("initial_guess", po::bool_switch()->default_value(false), "dump the initial guess.")
 		("corridor", po::bool_switch()->default_value(false), "dump the corridors.")
@@ -113,7 +114,7 @@ int main(int argc, char* argv[]){
   readQpSolverConfig(fname_config, param);
   
   vector<vector<OptimizeResult>> x0_bar; // interpolated intial guess. $x_0\bar$
-  InterpolateInitalGuess(solution, x0_bar, param);
+  InterpolateInitalGuess(solution, x0_bar, instance.goal_states, param);
 
   std::vector< std::array<int, 3> > neighbor_pairs;  // NPairs. list of tuple <ai, aj, t>
   bool initial_inter_legal = findNeighborPairsByTrustRegion(
@@ -130,6 +131,9 @@ int main(int argc, char* argv[]){
   ttimer.stop();
   solution_stat.rt_preprocess = ttimer.elapsedSeconds();
 
+  cout << "pre-prrcess done. The inter-vehcle planes generated. used time" <<
+    solution_stat.rt_preprocess << endl;
+
   // dump should not include in the time.
   if ( dump_initial_guess){
     dumpSolutions(output_prefix+"_guesses.yaml", x0_bar, solution_stat);
@@ -143,6 +147,9 @@ int main(int argc, char* argv[]){
     instance.dimx, instance.dimy, instance.obstacles, param, logger_level);
   ttimer.stop();
 
+  cout << "DSQP done.Ideal parallel processing time: " <<
+     solver.getMaxOfRuntimes() << endl;
+
   // record the time and solution.
   if ( ! solver.get_initial_static_legal() ){
     solution_stat.search_status = 1;  // minor collision
@@ -154,11 +161,10 @@ int main(int argc, char* argv[]){
   solution_stat.rt_preprocess + solution_stat.rt_max_optimization;
 
   if (dump_corridor){
-    dumpCorridors(output_prefix+"_guesses.yaml", solver.corridors, x0_bar);
+    dumpCorridors(output_prefix+"_corridors.yaml", solver.corridors, x0_bar);
   }
   
-  dumpSolutions(output_file, optimize_res, solution_stat);
-  
+  dumpSolutions(output_file, optimize_res, solution_stat);  
   
   return 1;
 }

@@ -45,7 +45,7 @@ max_omega: 0.07
 # the maximum speed and decelerate factor decide the dt
 max_v: 1 
 decelerate_factor: 0.8
-fixed_corridor: true
+fixed_corridor: false
 
 max_iter: 10
 delta_solution_threshold: 1

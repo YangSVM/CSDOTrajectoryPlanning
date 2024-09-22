@@ -210,7 +210,7 @@ bool calcCorridors(
                     else if (status_boxf.intial_status == 2)
                     {
                         std::cout << "collision with obstacle.\n";
-                    }                    
+                    }
                 }
                 if ( status_boxr.intial_status > 0 ){
                     std::cout << "Debug. Corridor. Agent "<< a<< " at time: "<< i  

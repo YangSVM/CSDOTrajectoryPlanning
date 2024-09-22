@@ -8,8 +8,9 @@ namespace libMultiRobotPlanning {
 
 
 
-void InterpolateInitalGuess(const std::vector<PlanResult<State, Action, double>>& solution, 
-  std::vector<std::vector<OptimizeResult>>& x0_bar, const QpParm& qp_parm);
+void InterpolateInitalGuess(std::vector<PlanResult<State, Action, double>>& solution, 
+  std::vector<std::vector<OptimizeResult>>& x0_bar, const std::vector<State>& goals,
+  const QpParm& qp_parm);
 
 void calcActionD(const int& action, const double& deltat_abs,
     double& dx, double& dy, double& dyaw, double r);

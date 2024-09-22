@@ -56,12 +56,6 @@ private:
     const QpParm& param
   );
 
-//   void calcEqualInterPlanes(
-//     const ArrayXd& xfs0, const ArrayXd& yfs0, 
-//     const ArrayXd& xrs0, const ArrayXd& yrs0,
-//     const std::vector<std::array<int, 3>>& neighbor_pairs,
-//     vector<vector<InterPlane>>& inter_planes
-// );
 
   void calcKineConstraint(
     int a, SpMat& M, VectorXd& ub, VectorXd& lb, int si,
@@ -85,6 +79,9 @@ private:
     const ArrayXd& x0, const ArrayXd& y0 );
   void calcMaxCtrlAndSteerConstraint(
     SpMat& M, VectorXd& ub, VectorXd& lb, int si, const  QpParm& param );
+  void calcInterInterPlaneSpMat( 
+    int a , const std::vector< InterPlane >& inter_planes
+  );
   void calcInterVehicleConstraint(
     int a, SpMat& M, VectorXd& ub, VectorXd& lb, int si, 
     // const ArrayXd& sc0,
@@ -119,7 +116,9 @@ private:
     vector<double>& ub
   );
 
-  bool isFeasible();
+  bool isFeasible(int a, const  ArrayXd& x0, const ArrayXd& y0, const ArrayXd& yaw0, 
+    const ArrayXd& steer0, const   ArrayXd& v0_, const  ArrayXd& w0_,
+    bool fully_check=false);
 
   double dimx, dimy;
   const std::unordered_set<Location>& m_obstacles;
@@ -134,9 +133,9 @@ private:
   size_t Na, Nt; // number fo agents, number of timesteps.
   int n_vars; // number of variables for one agent.
 
-  // contraints numbers
-  int n_kine;   // kinetic
-  int n_config; // configuration
+  // numbers of  equality/inequality contraints 
+  int n_kine;   // kinematics
+  int n_config; // configuration: start and goal.
   int n_2circle ; // double circle corridor
   int n_trust ; // trust region update
   int n_ctrls ;   // ctrl constraint
@@ -146,22 +145,31 @@ private:
   
   VectorXd solution0;  // initial guess for one agent
 
+  // double-circle cover.
   SpMat D;
   VectorXd E;
+
+  // interplane
+  SpMat G;
+  VectorXd H;
+  size_t G_curr_id;
 
   // save all the agents' initial states.
   // shape (Na, Nt) for state variables(x,y,yaw,steer) ; 
   // shape (Na, Nt-1) for control var (v,w).
   MatrixXd x, y, yaw, steer, v, w;
-  // corridors. error lower bound and error upper bound. for all agents.
-  vector<double> elbs, eubs;
+  // corridors lower bounds and  upper bounds. for all agents. length: Na*4*Nt.
+  // first agent index, second attribution (xf ,yf, xr, yr), third time. Example:
+  // [ agent 0: xf_t0, xf_t1, ..., xf_{Nt-1},  yf_t0, ..., xr ,..., yr, ..., agent 1, ..., agent (Na-1) ]
+  vector<double> corridor_lbs, corridor_ubs;
 
-
+  // solver status stuff.
   int solve_status;
   // int search_status = 2;  // 0: failed; 1: minor collision; 2: success.
   double max_individual_opt_runtime = -1; // max optimization time.
   std::vector<std::pair<int, int>> unsuccess_status;
+  bool initial_static_legal;  // if there is minor collision in static constraints.
+
   int logger_level;
   Eigen::IOFormat CleanFmt;
-  bool initial_static_legal;
 };

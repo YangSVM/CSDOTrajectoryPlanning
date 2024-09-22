@@ -41,9 +41,7 @@ bool SolverDSQP::calcIndividualSQP(
   const vector<double>& cfg,
   const QpParm& param
 ){
-  if ( logger_level >= 2) {
-    cout << "\n\n---------------process agent " << a << "------------\n";
-  }
+
   Timer timer_prepos;
   // bool success = true;
   double th_solution = param.delta_solution_threshold;
@@ -64,13 +62,10 @@ bool SolverDSQP::calcIndividualSQP(
 
   solution0 << x0, y0, yaw0, steer0, v0_, w0_;
   // should be changed among different agents.
-  n_inter  = 4 * inter_planes[a].size(); // 多车相互避让
+  n_inter  = 4 * inter_planes[a].size(); // inter-vehicle collision avoidance.
 
   // the maximum times that a timestep has potential collsion with other agents.
   int max_inter_times = calcMaxTime<InterPlane>(inter_planes[a], Nt);
-
-  // kinematics, start and goal position.
-
 
   int n_constraints =0; // number of constraints.
   // sparse matrix need this to initialize the memory.
@@ -102,6 +97,9 @@ bool SolverDSQP::calcIndividualSQP(
   int iter_count = 0;
 
   while ( delta_solution > th_solution && iter_count < max_iter){
+    if ( logger_level >= 2) {
+      cout << "iter count:\t" << iter_count << "\n";
+    }
     int si = 0;  // start index of constraints.
     
     SpMat M(n_constraints, n_vars);
@@ -228,7 +226,9 @@ bool SolverDSQP::calcIndividualSQP(
 
     // do not need to converage to local optimum.
     delta_solution = (solution_vec - solution0).dot(solution_vec - solution0);
-    cout << "delta_solution: " << delta_solution << std::endl;
+    if ( logger_level >= 2) {
+      cout << "delta_solution: " << delta_solution << std::endl;
+    }    
 
     if ( logger_level >= 2){
       tpost.stop();
@@ -242,18 +242,16 @@ bool SolverDSQP::calcIndividualSQP(
     iter_count++;
     ExtractAndSimplify(solution_vec, x0, y0, yaw0, steer0, v0_, w0_,
       x0_, y0_, yaw0_, steer0_);
-    solution0 = solution_vec;
-    updateCorridor(solution_vec, Nt, a, dimx, dimy, m_obstacles, elbs, eubs);
-    timer.reset();
 
-    if ( solve_status == 1 && iter_count >= 3){
+    // check the violation of kinematic constraints.
+    if (iter_count > max_iter/2 && isFeasible(a, x0, y0, yaw0, steer0, v0_, w0_) ){
       break;
     }
-    // check the violation.
-    // if ( isFeasible() ){
-    //   break;    // Find feasible solution.
-    // }
-
+    solution0 = solution_vec;
+    if ( ! param.fixed_corridor){
+      updateCorridor(solution_vec, Nt, a, dimx, dimy, m_obstacles, corridor_lbs, corridor_ubs);
+    }
+    timer.reset();
 
   }
 
@@ -270,11 +268,155 @@ bool SolverDSQP::calcIndividualSQP(
   return this->solve_status;
 }
 
-bool SolverDSQP::isFeasible(){
-  // input : solution0; 
-  // 思路1：把所有的约束重新过一次？看看是否出了上下界？
+bool check_less_than(
+  const vector<double>& small, const vector<double>& big, 
+  vector<int>& illegal_pos, double & err_max, double& err_sum
+){
+  assert( small.size() == big.size());
+  bool illegal=false;
+  illegal_pos.clear();
+  size_t num = small.size();
+  for ( size_t i = 0 ; i <num; i++){
+    if( small[i] <= big[i] ){
+      continue;
+    }
+    illegal = true;
+    illegal_pos.push_back(i);
+    double err = small[i] - big[i];
+    err_sum += err;
+    if ( err >err_max) err_max = err;    
+  }
+  return illegal;
+}
 
-  return true;
+bool SolverDSQP::isFeasible( int a, const  ArrayXd& x0, const ArrayXd& y0, 
+  const ArrayXd& yaw0, const ArrayXd& steer0, 
+  const   ArrayXd& v0_, const  ArrayXd& w0_, bool fully_check){
+  
+  double error_kine_th = 1e-2, error_corridor_max_th = 1e-1,\
+    error_inter_max_th = 1e-1;
+
+  // checking the kinematic violation.
+  ArrayXd x1 = x0.segment(0, Nt-1);
+  ArrayXd x2 = x0.segment(1, Nt-1);
+
+  ArrayXd y1 = y0.segment(0, Nt-1);
+  ArrayXd y2 = y0.segment(1, Nt-1);
+
+  ArrayXd yaw1 = yaw0.segment(0, Nt-1);
+  ArrayXd yaw2 = yaw0.segment(1, Nt-1);
+
+  ArrayXd steer1 = steer0.segment(0, Nt-1);
+  ArrayXd steer2 = steer0.segment(1, Nt-1);
+
+  double err_kin=0;
+  ArrayXd err_array = (x1 + v0_*( yaw1.cos())*dt - x2);
+  double err1 = (err_array *err_array ).sum();
+
+  err_array =  (y1 + v0_* (yaw1.sin())*dt - y2);
+  double err2 = (err_array *err_array ).sum();
+
+  err_array =  (yaw1 + v0_* (steer1.tan())/WheelBase*dt - yaw2);
+  double err3 = (err_array *err_array ).sum();
+
+  err_array =  (steer1 + w0_*dt - steer2);
+  double err4 = (err_array *err_array ).sum();
+
+  err_kin = (err1 + err2 + err3 + err4)/Nt;
+  if (logger_level >= 2){
+    cout<< " agent  kine error "<<  err_kin << " [" << err1 << ", " << err2 <<", " << err3 \
+    <<", "<< err4<< " ]."<<endl;
+  }
+
+  if ( !fully_check && err_kin > error_kine_th){
+    return false;
+  }
+
+  // calculate the exact position of the double-circle positions
+  ArrayXd xf = x0 + Constants::f2x * yaw0.cos();
+  ArrayXd xr = x0 + Constants::r2x * yaw0.cos();
+  ArrayXd yf = y0 + Constants::f2x * yaw0.sin();
+  ArrayXd yr = y0 + Constants::r2x * yaw0.sin();
+
+  // checking the violation of static collisions. output all the failure cases.
+  vector<double> corrior_lb (corridor_lbs.begin() + a*Nt*4, corridor_lbs.begin() + (a + 1)*Nt*4);
+  vector<double> corridor_ub (corridor_ubs.begin() + a*Nt*4, corridor_ubs.begin() + (a + 1)*Nt*4);
+  
+  vector<double> xf_vec(xf.data(), xf.data()+xf.size());
+  vector<double> xr_vec(xr.data(), xr.data()+xr.size());
+  vector<double> yf_vec(yf.data(), yf.data()+xf.size());
+  vector<double> yr_vec(yr.data(), yr.data()+yr.size());
+
+  vector<double> Y(xf_vec.begin(), xf_vec.end());
+  Y.insert(Y.end(), yf_vec.begin(), yf_vec.end());
+  Y.insert(Y.end(), xr_vec.begin(), xr_vec.end());
+  Y.insert(Y.end(), yr_vec.begin(), yr_vec.end());
+
+  vector<string> infos{"xf", "yf", "xr" , "yr"};
+
+  double err_cor_sum=0, err_cor_max=0, err_cor_cnt=0;
+  vector<int> illegal_timestamp;
+  if(check_less_than(corrior_lb, Y, illegal_timestamp, err_cor_max, err_cor_sum)){
+    err_cor_cnt += illegal_timestamp.size();
+    if ( logger_level >= 2){
+      for ( int ts : illegal_timestamp){
+        cout << "warning corridor lower bound error. agent " << a << " timestamp " \
+          << ts%Nt << " with " << infos[ts/Nt] <<endl;
+      }
+    }
+
+  }
+  if ( !fully_check && err_cor_max > error_corridor_max_th){
+    return false;
+  }
+  if(check_less_than( Y, corridor_ub,illegal_timestamp, err_cor_max, err_cor_sum)){
+    err_cor_cnt += illegal_timestamp.size();
+    if ( logger_level >= 2){
+      for ( int ts : illegal_timestamp){
+        cout << "warning. corridor upper bound error. agent " << a << " timestamp " \
+          << ts%Nt << " with " << infos[ts/Nt] <<endl;
+      }
+    }
+  }
+
+  if (logger_level>=3 && err_cor_sum > 0){
+    cout << "corridor error mean: " << err_cor_sum/err_cor_cnt <<\
+      " max: " << err_cor_max << endl;
+  }
+  if ( !fully_check && err_cor_max > error_corridor_max_th){
+    return false;
+  }
+
+  // checking the violation of inter-agent collisions.
+  double err_inter = 0,  err_inter_max=0;
+  int err_inter_cnt = 0;
+  if ( n_inter > 0){ // n_inter==0, G, H will be the last agent's value.
+    Eigen::VectorXd Y_arr = Eigen::ArrayXd::Map(
+        Y.data(), static_cast<Eigen::Index>(Y.size()));
+    auto res = G*Y_arr + H; // should less than zeros.
+    
+    for ( size_t i = 0; i < res.size(); i++){
+      if ( res[i] > 0){
+        err_inter += res[i];
+        err_inter_cnt ++;
+        if ( res[i] > err_inter_max){
+          err_inter_max = res[i];
+        }
+      }
+    }
+    if (logger_level>=3 && err_inter>0){
+      cout << "violated inter agent constraints. error max: " << err_inter_max 
+      << ". error mean: "<< err_inter/(double)err_inter_cnt << ". times: " 
+        << err_inter_cnt<< endl;
+    }
+  }
+
+
+  if ( err_kin <error_kine_th && err_inter_max < error_inter_max_th\
+   && err_cor_max< error_corridor_max_th){
+    return true;
+  }
+  return false;
 }
 
 // change the dense to osqp csc format.
@@ -679,7 +821,7 @@ void  SolverDSQP::updateCorridor(
   vector<double>& lb,
   vector<double>& ub
 ){
-  ArrayXd x = solution_vec.segment( 0, Nt);
+  ArrayXd x = solution_vec.segment( 0, Nt); // segment(start_index, !length) 
   ArrayXd y = solution_vec.segment( Nt, Nt);
   ArrayXd yaw = solution_vec.segment( 2* Nt, Nt);
 
@@ -714,6 +856,17 @@ void  SolverDSQP::updateCorridor(
       ub[a*m +  3*Nt + t] = boxr.y_max;
     // }
 
+    corridors[a][t].xf_min = boxf.x_min;
+    corridors[a][t].xf_max = boxf.x_max;
+
+    corridors[a][t].yf_min = boxf.y_min;
+    corridors[a][t].yf_max = boxf.y_max;
+
+    corridors[a][t].xr_min = boxr.x_min;
+    corridors[a][t].xr_max = boxr.x_max;
+
+    corridors[a][t].yr_min = boxr.y_min;
+    corridors[a][t].yr_max = boxr.y_max;
   }
 
 }
@@ -777,10 +930,10 @@ void SolverDSQP::calcCorridorConstraint(
     timer.reset();
   }
 
-  // vector<double> elbs( Na*Nt * 4 ), eubs( Na*Nt * 4 );
+  // vector<double> corridor_lbs( Na*Nt * 4 ), corridor_ubs( Na*Nt * 4 );
 
-  vector<double> elb (elbs.begin() + a*Nt*4, elbs.begin() + (a + 1)*Nt*4);
-  vector<double> eub (eubs.begin() + a*Nt*4, eubs.begin() + (a + 1)*Nt*4);
+  vector<double> elb (corridor_lbs.begin() + a*Nt*4, corridor_lbs.begin() + (a + 1)*Nt*4);
+  vector<double> eub (corridor_ubs.begin() + a*Nt*4, corridor_ubs.begin() + (a + 1)*Nt*4);
 
   if ( logger_level >= 2){
     timer.stop();
@@ -895,45 +1048,18 @@ void calcInterIndex( const int& t,
   yr = 3*Nt + t;
 }
 
-
-void SolverDSQP::calcInterVehicleConstraint(
-  int a, SpMat& M, VectorXd& ub, VectorXd& lb, int si,
-  // const ArrayXd& sc0,
-  const std::vector< InterPlane >& inter_planes,
-  int max_inter_times,
-  const ArrayXd& x0, const ArrayXd& y0,  const ArrayXd& yaw0
-)
-{
-  if ( n_inter == 0 ){
-    if ( logger_level >= 3){
-      cout << "No inter vehicle constraints" << std::endl;
-    }
+void SolverDSQP::calcInterInterPlaneSpMat( int a,
+  const std::vector< InterPlane >& inter_planes
+){
+  if ( G_curr_id == a ){
     return;
   }
-  // multi vehicle collision avoidance
-  SpMat G(n_inter, 4*Nt);
-  G.reserve( VectorXi::Constant(4*Nt, max_inter_times*2) );
-
-  VectorXd H(n_inter);
+  G_curr_id = a;
+  G.resize(n_inter, 4*Nt);
+  H.resize(n_inter);
+  G.setZero();
   H.setZero();
 
-  int m = Na * Nt;
-  // ArrayXd s0(3*Na*Nt); // init state;
-  // s0 << x0, y0, yaw0;
-  // MatrixXd sc0 = D*s0.matrix() + E; // state 2 circle position: [xf, yr, xr, yr]
-  // state 2 circles positions can be calculated 
-  double f2x = Constants::f2x;
-  double r2x = Constants::r2x;
-  ArrayXd xf0 = x0 + f2x * yaw0.cos();
-  ArrayXd yf0 = y0 + f2x * yaw0.sin();
-  ArrayXd xr0 = x0 - r2x * yaw0.cos();
-  ArrayXd yr0 = y0 - r2x * yaw0.sin();
-  // ArrayXd sc0(4*Na*Nt);
-  // sc0 << xf0, yf0, xr0, yr0;
-  
-  double rv = Constants::rv;
-
-  assert( n_inter/4 == inter_planes.size() && "n inter == inter planes' size" );
   for (size_t k=0; k < inter_planes.size(); k++){
     int xf_i, yf_i, xr_i, yr_i;
     int xf_j, yf_j, xr_j, yr_j;
@@ -963,8 +1089,30 @@ void SolverDSQP::calcInterVehicleConstraint(
     G.insert(4 * k+3, yr_i) = plane.b_r2r;
 
     H(4*k+3) = plane.c_r2r;
-
   }
+
+}
+
+
+void SolverDSQP::calcInterVehicleConstraint(
+  int a, SpMat& M, VectorXd& ub, VectorXd& lb, int si,
+  const std::vector< InterPlane >& inter_planes,
+  int max_inter_times,
+  const ArrayXd& x0, const ArrayXd& y0,  const ArrayXd& yaw0
+)
+{
+  if ( n_inter == 0 ){
+    if ( logger_level >= 3){
+      cout << "No inter vehicle constraints" << std::endl;
+    }
+    return;
+  }
+
+ 
+  double rv = Constants::rv;
+
+  // extract the inter plane to sparse matrix and put it in G, H
+  calcInterInterPlaneSpMat(a, inter_planes);
   SpMat M_GD = G*D; //mutual of G and D
 
   insertSparseMatrix(M, M_GD, si, 0);
@@ -974,7 +1122,6 @@ void SolverDSQP::calcInterVehicleConstraint(
   ub.block(si, 0, n_inter, 1) = -(H + G*E);
   lb.block(si, 0, n_inter, 1) = - inf* ArrayXd::Ones(n_inter, 1).matrix();
 
-  // 应该大部分都是满足的。检查现在的碰撞情况
   MatrixXd mat_inter = ub.block(si, 0, n_inter, 1) - M_GD*solution0.topLeftCorner(3*Nt, 1) ;
   if ( logger_level >= 3){
     cout << "mat_inter (should be >= 0):\n" << mat_inter.format(CleanFmt) << std::endl;
@@ -996,17 +1143,17 @@ Na( x0_bar.size()), Nt( x0_bar[0].size()),
 n_vars(4*Nt + 2*(Nt-1)),
   solution0(n_vars, 1), D(Nt * 4, 3*Nt ), E( Nt * 4),
   x(Na, Nt), y(Na, Nt), yaw(Na, Nt), steer(Na, Nt), v(Na, Nt-1), w(Na, Nt-1),  
-  elbs( Na*Nt * 4 ), eubs( Na*Nt * 4 ),
+  corridor_lbs( Na*Nt * 4 ), corridor_ubs( Na*Nt * 4 ),
   solve_status(true),
   logger_level(logger_level),CleanFmt(4, 0, ", ", "\n", "[", "]")
 {
  
   double time_max_corridor;
 
-  // now just fix the corridors.
+  // initial_static_legal: the initial guess is not colliding.
   initial_static_legal = calcCorridors(
     x0_bar, obstacles, dimx, dimy, 
-    corridors, Na, Nt, time_max_corridor
+    corridors, Na, Nt, time_max_corridor, logger_level
   );
 
 
@@ -1014,17 +1161,16 @@ n_vars(4*Nt + 2*(Nt-1)),
   double time_other = 0;
   solutions.resize(Na);
 
-  // 把初始解转成 eigen向量。后面
-  
+ 
   // all the timestep need to be the same. just check the last element for simplicity.
   assert(x0_bar.back().size() == Nt);
 
   // s_k = (x,y,yaw,phi). phi: front wheel angle.
   n_kine =  4*(Nt-1) ;  // s_{k+1} =  A s_k + B u_k * dt. k=0~Nt-1
   n_config = 6;  // start and end config (x,y,yaw) for each agent
-  n_2circle = Nt * 4;  // 双圆近似 单车避障约束
+  n_2circle = Nt * 4;  // double circle approximation. corridor constraints.
   n_trust =  Nt * 2; // x, y trust region update
-  n_ctrls =  (Nt - 1) * 2; // 控制量限制
+  n_ctrls =  (Nt - 1) * 2; // control variable boundaries.
 
 
   dt = param.dt;
@@ -1032,35 +1178,11 @@ n_vars(4*Nt + 2*(Nt-1)),
   steer_max = atan(WheelBase / Constants::r);
   max_iter = param.max_iter;
 
-  // extract the initial guess
-  // MatrixXd x(Na, Nt);
-  // MatrixXd y(Na, Nt);
-  // MatrixXd yaw(Na, Nt);
-  // MatrixXd steer(Na, Nt);
-
-  // MatrixXd v(Na, Nt - 1);
-  // MatrixXd w(Na, Nt - 1);
   vector<double> cfg;
 
   extractResult(Na, Nt, x0_bar, x, y, yaw, steer, v, w, cfg);
-  extractAgentsCorridor(Na, Nt, corridors, elbs, eubs);
+  extractAgentsCorridor(Na, Nt, corridors, corridor_lbs, corridor_ubs);
 
-  // 统一计算所有轨迹的双盘位置
-  ArrayXd xs = x.transpose().reshaped().array();
-  ArrayXd ys = y.transpose().reshaped().array();
-  ArrayXd yaws = yaw.transpose().reshaped().array();
-  ArrayXd steers = steer.transpose().reshaped().array();
-
-  double f2x = Constants::f2x;
-  double r2x = Constants::r2x;
-  // disc positions for all the agents
-  ArrayXd xfs0 = xs + f2x * yaws.cos();
-  ArrayXd yfs0 = ys + f2x * yaws.sin();
-  ArrayXd xrs0 = xs - r2x * yaws.cos();
-  ArrayXd yrs0 = ys - r2x * yaws.sin();
-  ArrayXd sc0(4*Na*Nt);  // state circles of all agents.
-  sc0 << xfs0, yfs0, xrs0, yrs0;
- 
 
   if (logger_level >= 2){
     timer.stop();
@@ -1074,6 +1196,9 @@ n_vars(4*Nt + 2*(Nt-1)),
   
   max_individual_opt_runtime = 0;
   for ( int a = 0 ; a < Na; a++){
+    if ( logger_level >= 2) {
+      cout << "\n\n---------------process agent " << a << "------------\n";
+    }
     timer_stat.reset();
 
     vector<OptimizeResult> solution; 

@@ -59,9 +59,14 @@ def plot_single_agent_corridors(obs, corridors, title=""):
 
             corridor = corridors[t, :]
 
-            ci = Circle(corridor[:2], 0.1,  linestyle=line_style, 
+            # circle of vehicle disc.
+            if not DILATED:
+                r_c_agent = r_vehicle
+            else:
+                r_c_agent = 0.1  # should be 0. but need radius to show.
+            c_agent = Circle(corridor[:2], r_c_agent,  linestyle=line_style, 
                         ec=cmap(t//2+1), fc=face_color, label=str(t//2))
-            ax.add_patch(ci)
+            ax.add_patch(c_agent)
             ax.text(corridor[0], corridor[1]-0.12, str(t//2)+text_suffix, fontsize=12)
 
             ri = Rectangle((corridor[2], corridor[4]), corridor[3] - corridor[2], 
@@ -152,10 +157,14 @@ if __name__ == "__main__":
         obs_[:, 2] = obsRadius
         obs = obs_
 
+    num_t = len(corridors[0])//2
     gap = 1
-    agent_id = 3
+    agent_id = 22
+    time_start_double = 2* 37
+    time_end_double = 2*42
     title_text ="Agent %d with time interval %d Corridors"%(agent_id, gap)
-    plot_single_agent_corridors(obs, corridors[agent_id,:12:gap,:], title_text)
+    plot_single_agent_corridors(obs,
+                                corridors[agent_id,time_start_double: time_end_double,:], title_text)
 
     
 

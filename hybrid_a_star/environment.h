@@ -261,9 +261,7 @@ class Environment {
     path_end = path.back();
 
     _camefrom.insert(cameFrom.begin(), cameFrom.end());
-
-    std::cout<< "path: "<<path.back()<<std::endl;
-
+    
     return true;
   }
 
