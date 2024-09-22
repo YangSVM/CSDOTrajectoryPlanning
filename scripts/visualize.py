@@ -51,7 +51,47 @@ def check_obs_collision(p, obs):
         obs_circle = CircleColli(obs[0], obs[1], obs[2])
     return collision_circle_and_rect(obs_circle, rect)
 
+def calc_corner_center(x, y, yaw, half_len, half_wid):
+    r = (half_len**2 + half_wid**2)**0.5
+    dyaw = math.atan2(half_len, half_wid)
+    pos =[0,0]
+    pos[0] = x + r*math.sin(-dyaw + yaw)
+    pos[1] = y - r*math.cos(-dyaw + yaw)
+    return pos
+
+def gen_wheels(x, y, yaw, steer, half_len, half_wid, lf, lb,cw):
+    wheel_names = ["rear_left", "rear_right", "front_left", "front_right"]
+    wps = { name:[0,0] for name in wheel_names} # wheel positions
+
+    wps['rear_left'][0] = x + cw/2*math.cos(yaw + math.pi/2)
+    wps['rear_left'][1] = y + cw/2*math.sin(yaw + math.pi/2)
     
+    wps['rear_right'][0] = x + cw/2*math.cos(yaw - math.pi/2)
+    wps['rear_right'][1] = y + cw/2*math.sin(yaw - math.pi/2)    
+    
+    # position of front-axis-center
+    px= x + lf*math.cos(yaw )
+    py = y + lf*math.sin(yaw)
+    
+    wps['front_left'][0] = px + cw/2*math.cos(yaw + math.pi/2)
+    wps['front_left'][1] = py + cw/2*math.sin(yaw + math.pi/2)
+    
+    wps['front_right'][0] = px + cw/2*math.cos(yaw - math.pi/2)
+    wps['front_right'][1] = py + cw/2*math.sin(yaw - math.pi/2)
+    
+    wheels =[]
+    for wp_name in wps:
+        wp = wps[wp_name]
+        pos = calc_corner_center(wp[0], wp[1], yaw, half_len, half_wid)
+        wheel_yaw = yaw
+        if 'front' in wp_name:
+            wheel_yaw += steer
+        wheel = Rectangle((pos[0], pos[1]), half_len*2, half_wid*2, 
+                  wheel_yaw/math.pi*180, facecolor='black')
+        wheels.append(wheel)
+        
+    return wheels
+
 
 class Animation:
     def __init__(self, map, schedule):
@@ -69,6 +109,7 @@ class Animation:
         self.patches = []
         self.artists = []
         self.lines = []
+        self.wheels =[]
         self.list_xdata = [[] for _ in range(0, len(map["agents"]))]
         self.list_ydata = [[] for _ in range(0, len(map["agents"]))]
         self.agents = dict()
@@ -127,7 +168,7 @@ class Animation:
         for d, i in zip(map["agents"], range(0, len(map["agents"]))):
             name = d["name"]
             self.agents[name] = Rectangle(
-                (d["start"][0], d["start"][1]), 1, 2, 0.0, edgecolor='black', alpha=0.7)
+                (d["start"][0], d["start"][1]), 1, 2, 0.0, edgecolor=cmap(i+1), facecolor='1',alpha=0.7)
             self.agents[name].original_face_color = cmap(i+1)
             self.patches.append(self.agents[name])
             if schedule["schedule"][name] is None:
@@ -139,6 +180,11 @@ class Animation:
             self.agent_names[name].set_verticalalignment('center')
             self.artists.append(self.agent_names[name])
 
+        for a in range(num_agents):
+            start = map["agents"][a]['start']
+            steer0 = schedule['agent'+str(a)][0]['steer']/180*math.pi
+            wheels_a = gen_wheels(start[0], start[1], start[2], steer0, lb/4, lb/8, lf, lb, cw)       
+            self.wheels += wheels_a
         # self.ax.set_axis_off()
         # self.fig.axes[0].set_visible(False)
         # self.fig.axes.get_yaxis().set_visible(False)
@@ -181,6 +227,7 @@ class Animation:
     def animate_func(self, i_frame):
         # check collision while plotting
         pos_list = []
+        wheels = []
         for agent_name in self.schedule["schedule"]:
             agent = schedule["schedule"][agent_name]
             pos = self.getState(i_frame / framesPerMove, agent)
@@ -211,9 +258,14 @@ class Animation:
                         "agent", ""))], self.list_ydata[int(agent_name.replace(
                             "agent", ""))])
 
+            steer = agent[i_frame]['steer']
+            wheel_i = gen_wheels(pos[0], pos[1], pos[2], steer, lb/4, lb/8, lf, lb, cw)
+            wheels += wheel_i
         # reset all colors
         for _, agent in self.agents.items():
-            agent.set_facecolor(agent.original_face_color)
+            # agent.set_facecolor(None)
+            agent.set_edgecolor(agent.original_face_color)
+        
 
         # inter-agent collision detection
         num_agent = len(pos_list)
@@ -245,9 +297,23 @@ class Animation:
                         print('static collision in file', i_frame/framesPerMove)
                     else:
                         print("static collision between states", i_frame/framesPerMove)                    
-                        
-        return self.patches + self.artists+self.lines
+        
+        for wheel in wheels:
+            self.wheels.append(wheel)
+        return self.patches + self.artists+self.lines +self.wheels
 
+    def update_wheel_info_by_state(self, ):
+        pass
+    
+    def udpate_wheels(self, t , a, x, y, yaw, steer):
+        # rear-left, rear-right, front-left, front-right
+        
+        self.wheels[4*a]._x0 = 0
+        self.wheels[4*a]._x1 = 0
+        self.wheels[4*a]._y0 = 0
+        self.wheels[4*a]._y1 = 0
+        self.wheels[4*a].angle  = yaw + steer*180/math.pi
+    
     # get the agent state. Interpolation.
     def getState(self, t, d):
         idx = 0

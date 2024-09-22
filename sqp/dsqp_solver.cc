@@ -139,7 +139,7 @@ bool SolverDSQP::calcIndividualSQP(
     calcTrustRegionConstraint(M, ub, lb, si, param.r_trust, x_trust, y_trust);
     si += n_trust;
 
-    // maximum control constraints
+    // maximum control and steer constraints
     calcMaxCtrlAndSteerConstraint(M, ub, lb, si, param);
     si += n_ctrls + Nt;
 
