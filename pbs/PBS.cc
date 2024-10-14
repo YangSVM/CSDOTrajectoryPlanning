@@ -310,7 +310,7 @@ inline void PBS::update(PBSNode* node)
 //     return false;
 // }
 
-// TODO use 
+// TODO no swap checking now.
 bool SwapConflict(State& n1, State& n2) {
     return n1.agentCollision(n2);
     // return ConfilctPairCheck(n1, n2, id_start1,node_check_size,id_start2,node_check_size  ,vehicle_param_);
@@ -412,18 +412,6 @@ PBSNode* PBS::selectNode()
 	if (screen > 1)
 		cout << endl << "Pop " << *curr << endl;
 	return curr;
-}
-
-void PBS::printPaths() const
-{
-// 	for (int i = 0; i < num_of_agents; i++)
-// 	{
-// 		cout << "Agent " << i << " (" << search_engines[i]->my_heuristic[search_engines[i]->start_location] << " -->" <<
-// 			paths[i]->size() - 1 << "): ";
-// 		for (const auto & t : *paths[i])
-// 			cout << t.location << "->";
-// 		cout << endl;
-// 	}
 }
 
 void PBS::printPriorityGraph() const
@@ -604,17 +592,7 @@ void PBS::savePaths(const string &fileName) const
         plan_results.push_back(*p);
     }
     dumpPlanResults(fileName, plan_results, runtime);
-//     std::ofstream output;
-//     output.open(fileName, std::ios::out);
-//     for (int i = 0; i < num_of_agents; i++)
-//     {
-//         output << "Agent " << i << ": ";
-//         for (const auto & t : *paths[i])
-//             output << "(" << search_engines[0]->instance.getRowCoordinate(t.location)
-//                    << "," << search_engines[0]->instance.getColCoordinate(t.location) << ")->";
-//         output << endl;
-//     }
-//     output.close();
+
 }
 
 void PBS::printConflicts(const PBSNode &curr)
@@ -640,12 +618,10 @@ bool PBS::terminate(PBSNode* curr)
 		solution_found = true;
 		goal_node = curr;
 		solution_cost = goal_node->cost;
-		if (!validateSolution())
-		{
-			cout << "Solution invalid!!!" << endl;
-			printPaths();
-			exit(-1);
-		}
+
+        // TODO implemente it later.
+        assert( validateSolution() );
+
 		if (screen > 0) // 1 or 2
 			printResults();
 		return true;
@@ -710,10 +686,7 @@ bool PBS::generateRoot()
         cout << "Generate " << *root << endl;
 	pushNode(root);
 	dummy_start = root;
-	if (screen >= 2) // print start and goals
-	{
-		printPaths();
-	}
+
 
 	return true;
 }

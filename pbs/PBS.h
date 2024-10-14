@@ -74,7 +74,8 @@ private:
 
 
 	vector<Path*> paths;
-	vector < SingleAgentSolver* > search_engines;  // used to find (single) agents' paths and mdd
+	// update to hybrid a star planner. can use member function directly.
+	vector < HybriAStarInterface* > search_engines;  // used to find (single) agents' paths and mdd
 
 
     bool generateChild(int child_id, PBSNode* parent, int low, int high);
@@ -107,9 +108,7 @@ private:
 		 // high level search
 	bool generateRoot();
     bool findPathForSingleAgent(PBSNode& node, const set<int>& higher_agents, int a, Path& new_path);
-	void classifyConflicts(PBSNode &parent);
 	void update(PBSNode* node);
-	void printPaths() const;
 
     void topologicalSort(list<int>& stack);
     void topologicalSortUtil(int v, vector<bool> & visited, list<int> & stack);
