@@ -114,6 +114,49 @@ class Environment {
     return true;
   }
 
+  // insert the dynamic obstacles only within planning horizon T_plan
+  bool resetPartTimeDynamicObstacles(
+    const std::set<int>& higher_agents, 
+    const std::vector<PlanResult<State, Action, Cost>*>& paths, int T_plan){
+    m_dynamic_obstacles.clear();
+    for ( const int & a : higher_agents){
+      int t_end = paths[a]->states.size();
+      for ( int t = 0 ; t < t_end && t < T_plan; t++){
+        State & s = paths[a]->states[t].first;
+          m_dynamic_obstacles.insert(
+              std::pair<int, State>(s.time, s)
+          );
+      }
+      if ( T_plan > t_end){ 
+        State & last_state = paths[a]->states.back().first;
+        for ( int t = t_end; t < T_plan; t++){
+          m_dynamic_obstacles.insert(
+              std::pair<int, State>(
+                      t,
+                      State(last_state.x, last_state.y, last_state.yaw))
+          );
+        }
+      }
+    }
+
+    // do not go through the lower agents' goals. stay the same as CL-CBS.
+    int num_agents = all_goals.size();
+    for ( int a = 0 ; a <num_agents; a++){
+      if ( higher_agents.find(a) != higher_agents.end() || a == agent_id ) {
+        continue;
+      }
+
+      m_dynamic_obstacles.insert(
+        std::pair<int, State>(
+                -1,
+                State(all_goals[a].x, all_goals[a].y, all_goals[a].yaw))
+      );
+    }
+
+    
+    return true;
+  }
+
 
   void onExpandHighLevelNode(int /*cost*/) {
     m_highLevelExpanded++;
@@ -499,8 +542,15 @@ class Environment {
            (int)(n_dyaw_act / Constants::dyaw[act]) * Constants::dyaw[act]) /
           Constants::dyaw[act];
       dyaw = ratio * Constants::dyaw[act];
-      dx = ratio * Constants::dx[act];
-      dy = ratio*Constants::dy[act];
+      
+      dx = Constants::r * sin(dyaw);
+      dy = -Constants::r * (1 - cos(dyaw));
+      if (act == 4 || act == 5) {
+        dx = -dx;
+      }
+      if (act == 2 || act == 5) {
+        dy = -dy;
+      }
 
     }
     State s = result.back().first;

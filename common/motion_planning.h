@@ -48,6 +48,8 @@ static  float constraintWaitTime ;
 static float speed ;
 static float t_inc;
 
+static int T_plan;
+
 // R = 3, 6.75 DEG。6 sample actions. forward(straight right left), back(straight right left)
 static std::vector<double> dx;
 static std::vector<double> dy ;

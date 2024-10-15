@@ -40,7 +40,20 @@ struct PlanResult {
 
   inline size_t size() { return states.size();  }
   inline bool empty() {return states.empty(); }
+
+  void operator+=( PlanResult<State, Action, Cost> const& obj){
+    // this end state is equal to obj's start state.
+    states.insert(states.end(), obj.states.begin()+1, obj.states.end());
+
+    actions.insert(actions.end(), obj.actions.begin(), obj.actions.end());
+    cost += obj.cost;
+    fmin += obj.fmin;
+    times.insert(times.end(), obj.times.begin(), obj.times.end());
+
+  }
 };
+
+
 
 template <typename State, typename Action, typename Cost>
 struct PlanResultShort {

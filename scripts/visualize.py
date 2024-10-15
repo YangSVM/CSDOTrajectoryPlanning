@@ -180,11 +180,11 @@ class Animation:
             self.agent_names[name].set_verticalalignment('center')
             self.artists.append(self.agent_names[name])
 
-        for a in range(num_agents):
-            start = map["agents"][a]['start']
-            steer0 = schedule['agent'+str(a)][0]['steer']/180*math.pi
-            wheels_a = gen_wheels(start[0], start[1], start[2], steer0, lb/4, lb/8, lf, lb, cw)       
-            self.wheels += wheels_a
+        # for a in range(num_agents):
+        #     start = map["agents"][a]['start']
+        #     steer0 = schedule['agent'+str(a)][0]['steer']/180*math.pi
+        #     wheels_a = gen_wheels(start[0], start[1], start[2], steer0, lb/4, lb/8, lf, lb, cw)       
+        #     self.wheels += wheels_a
         # self.ax.set_axis_off()
         # self.fig.axes[0].set_visible(False)
         # self.fig.axes.get_yaxis().set_visible(False)
@@ -258,9 +258,9 @@ class Animation:
                         "agent", ""))], self.list_ydata[int(agent_name.replace(
                             "agent", ""))])
 
-            steer = agent[i_frame]['steer']
-            wheel_i = gen_wheels(pos[0], pos[1], pos[2], steer, lb/4, lb/8, lf, lb, cw)
-            wheels += wheel_i
+            # steer = agent[i_frame]['steer']
+            # wheel_i = gen_wheels(pos[0], pos[1], pos[2], steer, lb/4, lb/8, lf, lb, cw)
+            # wheels += wheel_i
         # reset all colors
         for _, agent in self.agents.items():
             # agent.set_facecolor(None)

@@ -42,6 +42,8 @@ float Constants::constraintWaitTime = 2;
 float Constants::speed = 1;   // 正常行驶速度
 float Constants::t_inc = deltat * r /speed;  // 每个采样点时间的时间间隔
 
+int Constants::T_plan = 10;
+
 double Constants::dubinsShotDistanceSquare = 100;
 // R = 3, 6.75 DEG。6个采样动作. 前(中右左)，后(中右左)
 std::vector<double> Constants::dx = {r * deltat, r* sin(deltat),  r* sin(deltat),
@@ -106,5 +108,7 @@ void readAgentConfig(std::string fname_config) {
                    Constants::r * (1 - cos(Constants::deltat))};
   Constants::dyaw = {0, -Constants::deltat,  Constants::deltat,
                      0, Constants::deltat, -Constants::deltat};
+
+  Constants::T_plan = car_config["T_plan"].as<int>();
 }
 

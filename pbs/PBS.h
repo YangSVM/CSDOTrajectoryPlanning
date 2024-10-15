@@ -112,4 +112,8 @@ private:
 
     void topologicalSort(list<int>& stack);
     void topologicalSortUtil(int v, vector<bool> & visited, list<int> & stack);
+
+	bool SwapConflict(State& n1, State& n2) const;
+
+	bool TargetConflict(State& n1, State& n2) const;
 };

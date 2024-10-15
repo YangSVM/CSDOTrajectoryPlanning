@@ -311,13 +311,13 @@ inline void PBS::update(PBSNode* node)
 // }
 
 // TODO no swap checking now.
-bool SwapConflict(State& n1, State& n2) {
+bool PBS::SwapConflict(State& n1, State& n2) const{
     return n1.agentCollision(n2);
     // return ConfilctPairCheck(n1, n2, id_start1,node_check_size,id_start2,node_check_size  ,vehicle_param_);
     
 }
 
-bool TargetConflict(State& n1, State& n2) {
+bool PBS::TargetConflict(State& n1, State& n2) const{
     return n1.agentCollision(n2);
     // return ConfilctPairCheck(n1, n2, n1->GetStepSize()-1,1 , id_start2 ,node_check_size  ,vehicle_param_);
     

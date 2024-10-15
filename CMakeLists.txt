@@ -65,6 +65,16 @@ add_executable(pbs
 target_link_libraries(pbs ${Boost_LIBRARIES}   yaml-cpp   ${OMPL_LIBRARIES}
 )
 
+# coarse behavior searching front end
+add_executable(wpbs
+  ${SOURCES}
+  ${PBS_SOURCES}
+  win_pbs_search.cc
+)
+
+target_link_libraries(wpbs ${Boost_LIBRARIES}   yaml-cpp   ${OMPL_LIBRARIES}
+)
+
 file(GLOB QP_SOURCES  "sqp/*.cc")
 
 # CL_PBS-DSQP

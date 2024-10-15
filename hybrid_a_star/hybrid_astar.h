@@ -212,6 +212,13 @@ class HybridAStar {
     m_env.resetDynamicObstacles(higher_agents, paths);
     return true;
   }
+
+  bool resetPartTimeDynamicObstacles(
+    const std::set<int>& higher_agents, 
+    const std::vector<PlanResult<State, Action, Cost>*>& paths, int T_plan){
+    m_env.resetPartTimeDynamicObstacles(higher_agents, paths, T_plan);
+    return true;
+  }
  private:
   struct Node {
     Node(const State& state, Action action, Cost fScore, Cost gScore)
