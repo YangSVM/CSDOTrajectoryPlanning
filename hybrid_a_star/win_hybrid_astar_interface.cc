@@ -16,6 +16,7 @@ Path WinHybriAStarInterface::findOptimalPath(
     Path m_solution;
 
     // hybridAStar.resetDynamicObstacles( higher_agents, paths);
+    int t_plan_end = start_state.time + T_plan;
     hybridAStar.resetPartTimeDynamicObstacles( higher_agents, paths, T_plan);
     hybridAStar.search(start_state, m_solution);
 

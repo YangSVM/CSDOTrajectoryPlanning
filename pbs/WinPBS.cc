@@ -695,6 +695,9 @@ bool WinPBS::generateRoot( const vector<State>& starts)
 inline void WinPBS::releaseNodes()
 {
     // TODO:: clear open_list
+    while ( !open_list.empty()){
+        open_list.pop();
+    }
 	for (auto& node : allNodes_table)
 		delete node;
 	allNodes_table.clear();
@@ -789,6 +792,10 @@ void WinPBS::clear()
 	goal_node = nullptr;
 	solution_found = false;
 	solution_cost = -2;
+    num_HL_expanded=0;
+    num_HL_generated=0;
+    num_LL_expanded=0;
+    num_LL_generated=0;
 }
 
 

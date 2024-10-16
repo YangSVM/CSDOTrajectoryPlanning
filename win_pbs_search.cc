@@ -76,9 +76,11 @@ int main(int argc, char** argv)
 	vector<State> states(instance.start_states.begin(), instance.start_states.end());
 	vector<Path> solutions_part;
 	Logger logger;
+	size_t timestep = 0;
+	bool isStuck = true;
 	while (runtime < time_limit){
 		// run
-
+		wpbs.clear();  // clear after use.
 		bool find_local_traj = wpbs.solve(states ,time_limit);
 
 		timer.stop();
@@ -87,26 +89,65 @@ int main(int argc, char** argv)
 
 		// update. set the start states as T_plan later.
 		wpbs.getPaths(solutions_part);
+		timestep += Constants::T_plan;
+
 		for ( int a = 0 ; a < na; a++){
+			State s_next;
 			if (solutions_part[a].states.size() < Constants::T_plan + 1){
-				states[a] = solutions_part[a].states.back().first;
+				s_next = solutions_part[a].states.back().first;
+				s_next.time = timestep;
 			}
 			else{
-				states[a] = solutions_part[a].states[Constants::T_plan].first;
+				s_next = solutions_part[a].states[Constants::T_plan].first;
 			}
+
+			{
+				double dx = states[a].x - s_next.x;
+				double dy = states[a].y - s_next.y;
+				double dyaw = normalizeAngleAbsInPi(states[a].yaw - s_next.yaw);
+				if ( fabs(dx) + fabs(dy) + fabs(dyaw) > 1e-3 ){
+					isStuck = false;
+				}
+			}
+
+			states[a] = s_next;
 		}
 		
+
+		if ( isStuck){
+			cout << "stuck now. time: " << timestep <<endl;
+			break;
+		}
+		isStuck = true;
+
+
 		logger.log(iter_time, solutions_part);
 		
+
+		// ----------- 3. judge it is success or not. --------------- //
 		// method 1. all the paths end with goal but only check the T_plan inter conflict.
-		int max_time = 0;
-		for ( int a = 0 ; a < na; a++){
-			if ( max_time < solutions_part[a].states.size()){
-				max_time = solutions_part[a].states.size();
-			}
-		}
-		if ( max_time < Constants::T_plan){
+		// int max_time = 0;
+		// for ( int a = 0 ; a < na; a++){
+		// 	if ( max_time < solutions_part[a].states.size()){
+		// 		max_time = solutions_part[a].states.size();
+		// 	}
+		// }
+		// if ( max_time < Constants::T_plan){
+		// 	success = true;
+		// }
+
+		// method 2. at goal.
+		{
 			success = true;
+			for ( size_t a = 0 ; a < na; a++){
+				double dx = instance.goal_states[a].x - states[a].x;
+				double dy = instance.goal_states[a].y - states[a].y;
+				double dyaw = normalizeAngleAbsInPi( instance.goal_states[a].yaw - states[a].yaw);
+				if ( fabs(dx) + fabs(dy) + fabs(dyaw) > 1e-3){
+					success = false;
+					break;
+				}
+			}
 		}
 
 		// write a logger to log the trajectories and time.

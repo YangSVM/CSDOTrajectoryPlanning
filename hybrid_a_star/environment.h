@@ -119,6 +119,7 @@ class Environment {
     const std::set<int>& higher_agents, 
     const std::vector<PlanResult<State, Action, Cost>*>& paths, int T_plan){
     m_dynamic_obstacles.clear();
+    T_plan ++;
     for ( const int & a : higher_agents){
       int t_end = paths[a]->states.size();
       for ( int t = 0 ; t < t_end && t < T_plan; t++){
@@ -129,10 +130,10 @@ class Environment {
       }
       if ( T_plan > t_end){ 
         State & last_state = paths[a]->states.back().first;
-        for ( int t = t_end; t < T_plan; t++){
+        for ( int t = 0; t < T_plan - t_end; t++){
           m_dynamic_obstacles.insert(
               std::pair<int, State>(
-                      t,
+                      last_state.time + t +1,
                       State(last_state.x, last_state.y, last_state.yaw))
           );
         }
@@ -238,8 +239,10 @@ class Environment {
         cameFrom;
     cameFrom.clear();
     path.emplace_back(state);
+    bool at_goal = true;
     for (auto pathidx = 0; pathidx < 5; pathidx++) {
       if (fabs(reedsShepppath.length_[pathidx]) < 1e-6) continue;
+      at_goal = false;
       double n_dyaw_act, deltaLength, act, cost;
       switch (reedsShepppath.type_[pathidx]) {
         case 0:  // RS_NOP
@@ -300,6 +303,20 @@ class Environment {
       }
 
     }
+
+    if ( at_goal){ // maybe at goal at the first timestep. should test dynamic obs.
+      if ( ! stateValid(state)){
+        return false;
+      }
+      // just wait at the goal
+      State next_s = state;
+      next_s.time += 1;
+      cameFrom.insert(std::make_pair<>(
+          next_s,
+          std::make_tuple<>(state, 6, Constants::dx[0], Constants::dx[0])));
+      path.push_back(next_s);
+    }
+
     // m_goal = path.back(); // change the goal is not suitable.
     path_end = path.back();
 
@@ -543,12 +560,12 @@ class Environment {
           Constants::dyaw[act];
       dyaw = ratio * Constants::dyaw[act];
       
-      dx = Constants::r * sin(dyaw);
-      dy = -Constants::r * (1 - cos(dyaw));
+      dx = Constants::r * sin(fabs(dyaw));
+      dy = Constants::r * (1 - cos(fabs(dyaw)));
       if (act == 4 || act == 5) {
         dx = -dx;
       }
-      if (act == 2 || act == 5) {
+      if (act == 1 || act == 4) {
         dy = -dy;
       }
 

@@ -9,9 +9,7 @@
 void Logger::log(double iter_time, const vector<Path>& solutions_part, size_t T){
     iter_times.push_back(iter_time);
 
-    if ( T == -1){
-        T = solutions_part.size();
-    }
+    T= Constants::T_plan;
 
     size_t na = solutions_part.size();
     vector<Path> solutions_trunc;
@@ -20,9 +18,12 @@ void Logger::log(double iter_time, const vector<Path>& solutions_part, size_t T)
     // complete the states to T +1 if it is not.
     for ( size_t a = 0 ; a < na ; a++ ){
         Path path = solutions_part[a];
+        int t_end = path.states.back().first.time;
+        auto state_end =  path.states.back();
         while ( path.states.size() < T+1){
-            path.states.push_back(path.states.back());
-            path.actions.push_back(path.actions.back());
+            state_end.first.time++;
+            path.states.push_back(state_end );
+            path.actions.push_back(std::make_pair<int, double>(6, 0.0) );
         }
         solutions_trunc.push_back(path);
     }
@@ -57,9 +58,12 @@ void Logger::log(double iter_time, const vector<Path>& solutions_part, size_t T)
 
 void Logger::dump_to_file(const string& outputFile){
     double runtime_avg = 0 ;
+    cout << "\n iter time :";
     for ( auto rt : iter_times){
         runtime_avg += rt;
+        cout << rt << " ";
     }
+    cout << endl;
     runtime_avg = runtime_avg/iter_times.size();
 
     dumpPlanResults(outputFile, solutions, runtime_avg);
