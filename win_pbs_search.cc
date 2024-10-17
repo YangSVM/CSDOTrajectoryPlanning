@@ -90,8 +90,11 @@ int main(int argc, char** argv)
 
 		// ----------- 2. update start states by solution . --------------- //
 		// update. set the start states as T_plan later.
-		wpbs.getPaths(solutions_part);
 		timestep += Constants::T_plan;
+		if ( ! find_local_traj ){
+			cout << "cannot find solution in this iteration. timestep: " << timestep <<endl; 
+		}
+		wpbs.getPaths(solutions_part);
 
 		for ( int a = 0 ; a < na; a++){
 			State s_next;

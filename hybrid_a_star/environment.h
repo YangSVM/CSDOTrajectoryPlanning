@@ -313,6 +313,9 @@ class Environment {
       // just wait at the goal
       State next_s = state;
       next_s.time += 1;
+      if ( !stateValid(next_s) ) {
+        return false;
+      }
       cameFrom.insert(std::make_pair<>(
           next_s,
           std::make_tuple<>(state, 6, Constants::dx[0], Constants::dx[0])));
@@ -438,14 +441,14 @@ class Environment {
       if (s.agentCollision(itr->second)) return false;
     }
 
-    it = m_dynamic_obstacles.equal_range(s.time+1);
-    for (auto itr = it.first; itr != it.second; ++itr) {
-      if (s.agentCollision(itr->second)) return false;
-    }
-    it = m_dynamic_obstacles.equal_range(s.time-1);
-    for (auto itr = it.first; itr != it.second; ++itr) {
-      if (s.agentCollision(itr->second)) return false;
-    }
+    // it = m_dynamic_obstacles.equal_range(s.time+1);
+    // for (auto itr = it.first; itr != it.second; ++itr) {
+    //   if (s.agentCollision(itr->second)) return false;
+    // }
+    // it = m_dynamic_obstacles.equal_range(s.time-1);
+    // for (auto itr = it.first; itr != it.second; ++itr) {
+    //   if (s.agentCollision(itr->second)) return false;
+    // }
 
     auto itlow = m_dynamic_obstacles.lower_bound(-s.time);
     auto itup = m_dynamic_obstacles.upper_bound(-1);

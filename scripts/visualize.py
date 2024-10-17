@@ -274,7 +274,7 @@ class Animation:
                 # check collision with i, j:
                 collisioned = check_collision(pos_list[ai], pos_list[aj])
                 if collisioned:
-                    print('inter collision detected: ', ai, aj)
+                    print('inter collision detected: ', ai, aj, 'position:', pos_list[ai], pos_list[aj])
                     if i_frame % framesPerMove == 0 :
                         print('inter collision in timestep', i_frame/framesPerMove)
                     else:

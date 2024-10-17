@@ -28,7 +28,7 @@ obsRadius: 0.8
 constraintWaitTime: 2
 
 # windowed PBS
-T_plan : 10
+T_plan : 5
 
 # optimizer parameters.
 w_cfg : 1
