@@ -141,18 +141,18 @@ class Environment {
     }
 
     // do not go through the lower agents' goals. stay the same as CL-CBS.
-    int num_agents = all_goals.size();
-    for ( int a = 0 ; a <num_agents; a++){
-      if ( higher_agents.find(a) != higher_agents.end() || a == agent_id ) {
-        continue;
-      }
+    // int num_agents = all_goals.size();
+    // for ( int a = 0 ; a <num_agents; a++){
+    //   if ( higher_agents.find(a) != higher_agents.end() || a == agent_id ) {
+    //     continue;
+    //   }
 
-      m_dynamic_obstacles.insert(
-        std::pair<int, State>(
-                -1,
-                State(all_goals[a].x, all_goals[a].y, all_goals[a].yaw))
-      );
-    }
+    //   m_dynamic_obstacles.insert(
+    //     std::pair<int, State>(
+    //             -1,
+    //             State(all_goals[a].x, all_goals[a].y, all_goals[a].yaw))
+    //   );
+    // }
 
     
     return true;
@@ -214,7 +214,7 @@ class Environment {
       const State& state, double gscore, State& path_end, 
       // unordered_map <key, value, hash_function>
       std::unordered_map<State, std::tuple<State, Action, double, double>,
-                         std::hash<State>>& _camefrom) {
+                         std::hash<State>>& _camefrom, int t_start, int T_plan) {
     // double goal_distance =
     //     sqrt(pow(state.x - getGoal().x, 2) + pow(state.y - getGoal().y, 2));
 
@@ -302,6 +302,8 @@ class Environment {
         return false;
       }
 
+
+
     }
 
     if ( at_goal){ // maybe at goal at the first timestep. should test dynamic obs.
@@ -317,6 +319,9 @@ class Environment {
       path.push_back(next_s);
     }
 
+    if ( !stayAtGoalValid( path.back() ,t_start, T_plan ) ){
+      return false;
+    }
     // m_goal = path.back(); // change the goal is not suitable.
     path_end = path.back();
 
@@ -447,6 +452,25 @@ class Environment {
     for (auto it = itlow; it != itup; ++it)
       if (s.agentCollision(it->second)) return false;
 
+
+    return true;
+  }
+
+  bool stayAtGoalValid(const State &s, int T_plan, int t_start){
+    // s is a state very close to goal state.
+    // it should not collide with higher agents.
+    
+    int t_end = T_plan + t_start;
+    if ( s.time > t_end ) {
+      return true;
+    }
+
+
+    auto itup = m_dynamic_obstacles.upper_bound(t_end);
+    auto itlow = m_dynamic_obstacles.lower_bound(s.time+1);
+    for ( auto it = itlow ; it != itup; it++){
+      if (s.agentCollision(it->second)) return false;
+    }
 
     return true;
   }

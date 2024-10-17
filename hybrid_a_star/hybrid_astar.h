@@ -93,6 +93,7 @@ class HybridAStar {
     solution.states.clear();
     solution.actions.clear();
     solution.cost = 0;
+    int t_start = startState.time;
 
     openSet_t openSet;  // heap. priority queue of Node
     // map node index to open_set handle.
@@ -128,7 +129,7 @@ class HybridAStar {
 
       // ReedsShepp forward to test if it is a solution. 
       // path_end is near the goal but not the same.
-      if (m_env.isSolution(current.state, current.gScore, path_end, cameFrom)) {
+      if (m_env.isSolution(current.state, current.gScore, path_end, cameFrom, t_start, T_plan)) {
         solution.states.clear();
         solution.actions.clear();
 
@@ -217,9 +218,11 @@ class HybridAStar {
     const std::set<int>& higher_agents, 
     const std::vector<PlanResult<State, Action, Cost>*>& paths, int T_plan){
     m_env.resetPartTimeDynamicObstacles(higher_agents, paths, T_plan);
+    this->T_plan = T_plan;
     return true;
   }
  private:
+ int T_plan;
   struct Node {
     Node(const State& state, Action action, Cost fScore, Cost gScore)
         : state(state), action(action), fScore(fScore), gScore(gScore) {}
@@ -270,6 +273,5 @@ class HybridAStar {
  private:
   Environment& m_env;
 };
-
 
 }  // namespace libMultiRobotPlanning

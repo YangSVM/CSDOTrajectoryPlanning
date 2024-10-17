@@ -81,12 +81,14 @@ int main(int argc, char** argv)
 	while (runtime < time_limit){
 		// run
 		wpbs.clear();  // clear after use.
+		timer.reset();
 		bool find_local_traj = wpbs.solve(states ,time_limit);
 
 		timer.stop();
 		iter_time = timer.elapsedSeconds();
 		runtime += timer.elapsedSeconds();
 
+		// ----------- 2. update start states by solution . --------------- //
 		// update. set the start states as T_plan later.
 		wpbs.getPaths(solutions_part);
 		timestep += Constants::T_plan;
@@ -125,16 +127,6 @@ int main(int argc, char** argv)
 		
 
 		// ----------- 3. judge it is success or not. --------------- //
-		// method 1. all the paths end with goal but only check the T_plan inter conflict.
-		// int max_time = 0;
-		// for ( int a = 0 ; a < na; a++){
-		// 	if ( max_time < solutions_part[a].states.size()){
-		// 		max_time = solutions_part[a].states.size();
-		// 	}
-		// }
-		// if ( max_time < Constants::T_plan){
-		// 	success = true;
-		// }
 
 		// method 2. at goal.
 		{
@@ -143,7 +135,9 @@ int main(int argc, char** argv)
 				double dx = instance.goal_states[a].x - states[a].x;
 				double dy = instance.goal_states[a].y - states[a].y;
 				double dyaw = normalizeAngleAbsInPi( instance.goal_states[a].yaw - states[a].yaw);
-				if ( fabs(dx) + fabs(dy) + fabs(dyaw) > 1e-3){
+				double dgoal =  fabs(dx) + fabs(dy) + fabs(dyaw);
+				if ( dgoal > 1e-3){
+					cout <<"agent: " << a <<" delta goal: " << dgoal << endl;
 					success = false;
 					break;
 				}

@@ -7,7 +7,7 @@
 
 WinPBS::WinPBS(const Instance& instance,   int screen, int T_plan) :
         screen(screen),
-        num_of_agents(instance.getDefaultNumberOfAgents())
+        num_of_agents(instance.getDefaultNumberOfAgents()), T_plan(T_plan)
 {
     clock_t t = clock();
 
@@ -28,6 +28,7 @@ WinPBS::WinPBS(const Instance& instance,   int screen, int T_plan) :
 bool WinPBS::solve(const vector<State>& starts, double _time_limit)
 {
     this->time_limit = _time_limit;
+    this->t_start = starts[0].time;
 
     if (screen > 0) // 1 or 2
     {
@@ -326,9 +327,12 @@ bool WinPBS::TargetConflict(State& n1, State& n2) const {
 bool WinPBS::hasConflicts(int a1, int a2) const
 {
 	int min_path_length = (int) (paths[a1]->size() < paths[a2]->size() ? paths[a1]->size() : paths[a2]->size());
-	for (int timestep = 0; timestep < min_path_length; timestep++)
+    int t_plan_end = t_start + T_plan;
+	for (int index = 0; index < min_path_length; index++)
 	{
-        if ( SwapConflict(paths[a1]->states.at(timestep).first, paths[a2]->states.at(timestep).first)){
+        if ( paths[a1]->states.at(index).first.time > t_plan_end) break;
+
+        if ( SwapConflict(paths[a1]->states.at(index).first, paths[a2]->states.at(index).first)){
             return true;
         }
 	}
@@ -338,9 +342,10 @@ bool WinPBS::hasConflicts(int a1, int a2) const
 		int a1_ = paths[a1]->size() < paths[a2]->size() ? a1 : a2;
 		int a2_ = paths[a1]->size() < paths[a2]->size() ? a2 : a1;
 
-		for (int timestep = min_path_length; timestep < (int)paths[a2_]->size(); timestep++)
+		for (int index = min_path_length; index < (int)paths[a2_]->size(); index++)
 		{
-			if (TargetConflict(paths[a1_]->states.back().first, paths[a2_]->states.at(timestep).first)){
+			if (paths[a2_]->states.at(index).first.time > t_plan_end) break;
+            if (TargetConflict(paths[a1_]->states.back().first, paths[a2_]->states.at(index).first)){
                 return true;
             }
 		}
@@ -646,22 +651,24 @@ bool WinPBS::generateRoot( const vector<State>& starts)
 	paths.reserve(num_of_agents);
 
     set<int> higher_agents;
+    set<int> empty_higher_agents;
+
     for (auto i = 0; i < num_of_agents; i++)
     {
         //CAT cat(dummy_start->makespan + 1);  // initialized to false
-        //updateReservationTable(cat, i, *dummy_start);
-        auto new_path = search_engines[i]->findOptimalPath(starts[i], higher_agents, paths, i);
-        // num_LL_expanded += search_engines[i]->num_expanded;
-        // num_LL_generated += search_engines[i]->num_generated;
-        if (new_path.empty())
-        {            
-            set<int> empty_higher_agents;
-            new_path = search_engines[i]->findOptimalPath(starts[i], empty_higher_agents, paths, i);
-            if ( new_path.empty() ){
-                cout << "No path exists for agent " << i << endl;
-                return false;
-            }
-        }
+
+        auto new_path = search_engines[i]->findOptimalPath(
+            starts[i], empty_higher_agents, paths, i);
+
+        // if (new_path.empty())
+        // {            
+        //     new_path = search_engines[i]->findOptimalPath(
+        //         starts[i], empty_higher_agents, paths, i);
+        //     if ( new_path.empty() ){
+        //         cout << "No path exists for agent " << i << endl;
+        //         return false;
+        //     }
+        // }
         root->paths.emplace_back(i, new_path);
         paths.emplace_back(&root->paths.back().second);
         root->makespan = max(root->makespan, new_path.size() - 1);

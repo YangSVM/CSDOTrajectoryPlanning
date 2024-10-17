@@ -75,6 +75,7 @@ private:
 	int num_of_agents;
 
 	int T_plan; // ! planning horizon.
+	int t_start;
 
 
 	vector<Path*> paths;
