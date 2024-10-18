@@ -259,8 +259,12 @@ def dump_summary(result_path, is_csdo, map_size = 50, obstruced = False):
 if __name__=='__main__':
 
     # csdo
-    result_path = "csdo"
-    is_csdo = True
+    # result_path = "csdo"
+    # is_csdo = True
+    
+    # wpbs
+    result_path = "wpbs"
+    is_csdo = False
 
     # random priority planner. implemented by CLCBS with batch size 1.
     # result_path = "batch_size_1/"

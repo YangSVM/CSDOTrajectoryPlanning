@@ -58,13 +58,17 @@ void Logger::log(double iter_time, const vector<Path>& solutions_part, size_t T)
 
 void Logger::dump_to_file(const string& outputFile){
     double runtime_avg = 0 ;
+    double runtime_max = 0;
     cout << "\n iter time :";
     for ( auto rt : iter_times){
         runtime_avg += rt;
         cout << rt << " ";
+        if (rt > runtime_max){
+            runtime_max = rt;
+        }
     }
     cout << endl;
     runtime_avg = runtime_avg/iter_times.size();
 
-    dumpPlanResults(outputFile, solutions, runtime_avg);
+    dumpPlanResults(outputFile, solutions, runtime_max);
 }
