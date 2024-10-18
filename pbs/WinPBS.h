@@ -101,6 +101,7 @@ private:
 
 
 	bool terminate(PBSNode* curr); // check the stop condition and return true if it meets
+	bool pathStuck();  // check the solution is stuck or not.
 
     void getHigherPriorityAgents(const list<int>::reverse_iterator & p1, set<int>& agents);
     void getLowerPriorityAgents(const list<int>::iterator & p1, set<int>& agents);

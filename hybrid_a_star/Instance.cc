@@ -105,6 +105,7 @@ bool Instance::startAndGoalValid(
         std::cout <<"warning. Maybe inaccurate becasue the doule circle.\n ";
         std::cout << "agent " << a << " start and obstacle " << obs <<std::endl;
         if ( starts[a].obsCollision(obs)){
+          std::cerr << "Error. agent " << a << " start and obstacle " << obs <<std::endl;
           return false;
         }
       }
@@ -116,6 +117,7 @@ bool Instance::startAndGoalValid(
         std::cout <<"warning. Maybe inaccurate becasue the doule circle.\n ";
         std::cout << "agent " << a << " goal and obstacle " << obs <<std::endl;
         if ( goals[a].obsCollision(obs)){
+          std::cerr << "Error. agent " << a << " goal and obstacle " << obs <<std::endl;
           return false;
         }
       }

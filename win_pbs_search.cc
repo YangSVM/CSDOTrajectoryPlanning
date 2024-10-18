@@ -120,7 +120,8 @@ int main(int argc, char** argv)
 		
 
 		if ( isStuck){
-			cout << "stuck now. time: " << timestep <<endl;
+			cout << " \033[1m\033[31m stuck now. time: " << timestep 
+				<< "\033[0m" <<endl;
 			break;
 		}
 		isStuck = true;
@@ -155,12 +156,11 @@ int main(int argc, char** argv)
 	}
 	
 	std::cout << "total time: " << runtime<< std::endl;
-	if ( success ){
-		wpbs.savePaths(outputFile);
-		
-	}
+
 	// dumpPlanResults(vm["output"].as<string>(), solution_vec, runtime);
-	logger.dump_to_file(outputFile);
+	if ( success ){
+		logger.dump_to_file(outputFile);
+	}
 
 
 	return 0;

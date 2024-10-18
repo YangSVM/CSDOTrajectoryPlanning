@@ -208,6 +208,14 @@ bool WinPBS::generateChild(int child_id, PBSNode* parent, int low, int high,
             runtime_detect_conflicts += (double)(clock() - t) / CLOCKS_PER_SEC;
         }
     }
+
+    if ( node->conflicts.empty() && pathStuck() )
+    {
+        delete node;
+        parent->children[child_id] = nullptr;
+        return false;
+    }
+    
     num_HL_generated++;
     node->time_generated = num_HL_generated;
     if (screen > 1)
@@ -615,12 +623,38 @@ string WinPBS::getSolverName() const
 	return "WinPBS with " + search_engines[0]->getName();
 }
 
+bool WinPBS::pathStuck(){
+    bool isStuck = true;
+    for ( size_t a = 0 ; a < num_of_agents; a++){
+        State s(0,0,0);
+        if ( paths[a]->states.size() < T_plan+1 ){
+            s = paths[a]->states.back().first;
+        }
+        else{
+            s = paths[a]->states[T_plan].first;
+        }
+        double dx = paths[a]->states[0].first.x - s.x;
+        double dy= paths[a]->states[0].first.y - s.y;
+        double dyaw = paths[a]->states[0].first.yaw - s.yaw;
+        dyaw = normalizeAngleAbsInPi(dyaw);
+        if ( fabs(dx) + fabs(dy) + fabs(dyaw) > 1e-3 ){
+            isStuck = false;
+            break;
+        }
+    }
+    return isStuck;
+}
+
 
 bool WinPBS::terminate(PBSNode* curr)
 {
 	runtime = (double)(clock() - start) / CLOCKS_PER_SEC;
 	if (curr->conflicts.empty()) //no conflicts
-	{// found a solution
+	{
+        if ( pathStuck() ){
+            return false;
+        }
+        // found a solution
 		solution_found = true;
 		goal_node = curr;
 		solution_cost = goal_node->cost;
