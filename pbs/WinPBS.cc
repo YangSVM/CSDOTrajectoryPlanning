@@ -693,6 +693,10 @@ bool WinPBS::generateRoot( const vector<State>& starts)
 
         auto new_path = search_engines[i]->findOptimalPath(
             starts[i], empty_higher_agents, paths, i);
+        if ( new_path.empty() ){
+            cout << "No path exists for agent " << i << endl;
+            return false;
+        }
 
         // if (new_path.empty())
         // {            

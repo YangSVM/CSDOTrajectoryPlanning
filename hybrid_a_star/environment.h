@@ -52,7 +52,7 @@ class Environment {
       m_highLevelExpanded(0),
       m_lowLevelExpanded(0),
       all_goals(goals),
-      agent_id(agent_id)
+      m_agent_id(agent_id)
   {
     m_dimx = (int)maxx / Constants::mapResolution;
     m_dimy = (int)maxy / Constants::mapResolution;
@@ -71,6 +71,7 @@ class Environment {
 
     }
     updateCostmap();
+    
   }
 
   Environment(const Environment &) = delete;
@@ -99,7 +100,7 @@ class Environment {
     // do not go through the lower agents' goals. stay the same as CL-CBS.
     int num_agents = all_goals.size();
     for ( int a = 0 ; a <num_agents; a++){
-      if ( higher_agents.find(a) != higher_agents.end() || a == agent_id ) {
+      if ( higher_agents.find(a) != higher_agents.end() || a == m_agent_id ) {
         continue;
       }
 
@@ -140,21 +141,36 @@ class Environment {
       }
     }
 
-    // do not go through the lower agents' goals. stay the same as CL-CBS.
-    // int num_agents = all_goals.size();
-    // for ( int a = 0 ; a <num_agents; a++){
-    //   if ( higher_agents.find(a) != higher_agents.end() || a == agent_id ) {
-    //     continue;
-    //   }
 
-    //   m_dynamic_obstacles.insert(
-    //     std::pair<int, State>(
-    //             -1,
-    //             State(all_goals[a].x, all_goals[a].y, all_goals[a].yaw))
-    //   );
-    // }
+    // static inference.
+    // who only has one frame state and stay at goal
+    int num_agents = all_goals.size();
+    bool need_update = false;
+    for ( int a =0 ; a < num_agents; a++){
+      if (a == m_agent_id) continue;
+      if ( paths.size() < a +1 || paths[a]->states.size() == 0 ||
+          higher_agents.find(a) == higher_agents.end()  ){
+        if ( agent_at_goals.find(a) != agent_at_goals.end()  ){
+          need_update = true;
+          agent_at_goals.erase(a);
+        }
+        continue;
+      }
+      bool at_goal = areStatesClose( paths[a]->states[0].first, all_goals[a] );
 
-    
+      if ( !at_goal && agent_at_goals.find(a) == agent_at_goals.end()) continue;
+      else if( at_goal && agent_at_goals.find(a) != agent_at_goals.end() ) continue;
+      need_update = true;
+      if ( at_goal) agent_at_goals.insert(a) ;
+      else{
+        agent_at_goals.erase(a);
+      }
+    }
+    if ( need_update){
+      updateCostMapByInfer();
+    }
+
+
     return true;
   }
 
@@ -436,6 +452,10 @@ class Environment {
       if (s.obsCollision(obs)) return false;
     }
 
+    for ( int a : agent_at_goals){
+      if ( s.agentCollision(all_goals[a]) ) return false;
+    }
+
     auto it = m_dynamic_obstacles.equal_range(s.time);
     for (auto itr = it.first; itr != it.second; ++itr) {
       if (s.agentCollision(itr->second)) return false;
@@ -538,6 +558,70 @@ class Environment {
     //   }
     // 
   }
+  
+  void updateCostMapByInfer( ){
+        boost::heap::fibonacci_heap<std::pair<State, double>,
+                                boost::heap::compare<compare_node>>
+        heap;
+    
+    // clear the cost map. 
+    holonomic_cost_map = std::vector<std::vector<double>>(
+         std::vector<std::vector<double>>(
+                          m_dimx, std::vector<double>(m_dimy, 0)));
+
+    std::set<std::pair<int, int>> temp_obs_set;
+    for (const auto & obs : m_obstacles) {
+      temp_obs_set.insert(
+          std::make_pair((int)obs.x / Constants::mapResolution,
+                         (int)obs.y / Constants::mapResolution));
+    }
+    for ( size_t a = 0 ; a < all_goals.size() ; a++){
+      if (a == m_agent_id) continue;
+      if ( agent_at_goals.find(a) != agent_at_goals.end()) {
+        double xf, yf,  xr,  yr; 
+        all_goals[a].GetDiscCenter( xf, yf,  xr,  yr) ;
+        temp_obs_set.insert(
+                    std::make_pair((int)xf / Constants::mapResolution,
+                         (int) yf / Constants::mapResolution)
+        );
+        temp_obs_set.insert(
+                    std::make_pair((int)xr / Constants::mapResolution,
+                         (int) yr / Constants::mapResolution)
+        );
+      }
+    }
+
+    heap.clear();
+    int goal_x = (int)m_goal.x / Constants::mapResolution;
+    int goal_y = (int)m_goal.y / Constants::mapResolution;
+    heap.push(std::make_pair(State(goal_x, goal_y, 0), 0));
+
+    while (!heap.empty()) {
+      std::pair<State, double> node = heap.top();
+      heap.pop();
+
+      int x = node.first.x;
+      int y = node.first.y;
+      for (int dx = -1; dx <= 1; dx++)
+        for (int dy = -1; dy <= 1; dy++) {
+          if (dx == 0 && dy == 0) continue;
+          int new_x = x + dx;
+          int new_y = y + dy;
+          if (new_x == goal_x && new_y == goal_y) continue;
+          if (new_x >= 0 && new_x < m_dimx && new_y >= 0 && new_y < m_dimy &&
+              holonomic_cost_map[new_x][new_y] == 0 &&
+              temp_obs_set.find(std::make_pair(new_x, new_y)) ==
+                  temp_obs_set.end()) {
+            holonomic_cost_map[new_x][new_y] =
+                holonomic_cost_map[x][y] +
+                sqrt(pow(dx * Constants::mapResolution, 2) +
+                      pow(dy * Constants::mapResolution, 2));
+            heap.push(std::make_pair(State(new_x, new_y, 0),
+                                      holonomic_cost_map[new_x][new_y]));
+          }
+        }
+    }
+  }
 
   bool generatePath(State startState, int act, double n_dyaw_act,
                     double deltaLength,
@@ -625,7 +709,8 @@ class Environment {
   int m_lowLevelExpanded;
 
   const std::vector<State>& all_goals;
-  int agent_id;
+  std::set<int> agent_at_goals;
+  int m_agent_id;
 };
 
 }  // namespace libMultiRobotPlanning

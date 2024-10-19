@@ -361,8 +361,10 @@ if __name__ == "__main__":
         if map["map"]["obstacles"] is None:
             map["map"]["obstacles"] = np.array([[-1,-1,0.1]])
 
-    with open(args.schedule) as states_file:
-        schedule = yaml.load(states_file, Loader=yaml.FullLoader)
+    schedule = None
+    if args.schedule is not None:
+        with open(args.schedule) as states_file:
+            schedule = yaml.load(states_file, Loader=yaml.FullLoader)
     
     num_agents = len(map["agents"])
     if (schedule is None) or (schedule["schedule"] is None):

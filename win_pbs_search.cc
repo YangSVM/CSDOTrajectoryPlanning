@@ -93,6 +93,7 @@ int main(int argc, char** argv)
 		timestep += Constants::T_plan;
 		if ( ! find_local_traj ){
 			cout << "cannot find solution in this iteration. timestep: " << timestep <<endl; 
+			break;
 		}
 		wpbs.getPaths(solutions_part);
 
@@ -158,9 +159,9 @@ int main(int argc, char** argv)
 	std::cout << "total time: " << runtime<< std::endl;
 
 	// dumpPlanResults(vm["output"].as<string>(), solution_vec, runtime);
-	if ( success ){
+	// if ( success ){
 		logger.dump_to_file(outputFile);
-	}
+	// }
 
 
 	return 0;

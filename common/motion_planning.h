@@ -248,6 +248,8 @@ struct hash<State> {
 };
 }  // namespace std
 
+bool areStatesClose(const State& s1, const State& s2);
+
 using Action = int;  // int<7 int ==6 wait
 using Cost = double; 
 
