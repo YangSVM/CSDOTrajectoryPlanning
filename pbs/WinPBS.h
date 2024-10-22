@@ -76,7 +76,7 @@ private:
 
 	int T_plan; // ! planning horizon.
 	int t_start;
-
+	const Instance& instance;
 
 	vector<Path*> paths;
 	// update to hybrid a star planner. can use member function directly.
@@ -123,4 +123,8 @@ private:
 	bool SwapConflict(State& n1, State& n2) const;
 
 	bool TargetConflict(State& n1, State& n2) const;
+	bool isLivelock(const vector<State>& starts, PBSNode* curr);
+	bool looseRunOver(PBSNode* curr, const vector<State>& starts);
+	void addWaitAction(PBSNode* curr, int ai);
+
 };

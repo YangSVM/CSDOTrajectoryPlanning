@@ -248,6 +248,7 @@ struct hash<State> {
 };
 }  // namespace std
 
+double calcStatesDistance(const State& s1, const State& s2);
 bool areStatesClose(const State& s1, const State& s2);
 
 using Action = int;  // int<7 int ==6 wait

@@ -54,16 +54,17 @@ std::vector<double> Constants::dyaw = {0, -deltat, deltat, 0, deltat, -deltat};
 
 
 bool areStatesClose(const State& s1, const State& s2){
+  return calcStatesDistance(s1, s2) < 1e-3;
+}
+
+double calcStatesDistance(const State& s1, const State& s2){
   double dx = s1.x - s2.x;
   double dy = s1.y - s2.y;
   double dyaw = s1.yaw - s2.yaw;
   dyaw = normalizeAngleAbsInPi(dyaw);
-  if ( fabs(dx) + fabs(dy) + fabs(dyaw) < 1e-3){
-    return true;
-  }
-  return false;
+  double d = fabs(dx) + fabs(dy) + fabs(dyaw);
+  return   d;
 }
-
 
 void readAgentConfig(std::string fname_config) {
   YAML::Node car_config;

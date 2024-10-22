@@ -78,7 +78,7 @@ int main(int argc, char** argv)
 	Logger logger;
 	size_t timestep = 0;
 	bool isStuck = true;
-	while (runtime < time_limit){
+	while (runtime < time_limit && timestep < 1e3){
 		// run
 		wpbs.clear();  // clear after use.
 		timer.reset();
@@ -137,11 +137,8 @@ int main(int argc, char** argv)
 		{
 			success = true;
 			for ( size_t a = 0 ; a < na; a++){
-				double dx = instance.goal_states[a].x - states[a].x;
-				double dy = instance.goal_states[a].y - states[a].y;
-				double dyaw = normalizeAngleAbsInPi( instance.goal_states[a].yaw - states[a].yaw);
-				double dgoal =  fabs(dx) + fabs(dy) + fabs(dyaw);
-				if ( dgoal > 1e-3){
+				double dgoal = calcStatesDistance(states[a], instance.goal_states[a]);
+				if ( dgoal > 1){
 					cout <<"agent: " << a <<" delta goal: " << dgoal << endl;
 					success = false;
 					break;
@@ -159,9 +156,9 @@ int main(int argc, char** argv)
 	std::cout << "total time: " << runtime<< std::endl;
 
 	// dumpPlanResults(vm["output"].as<string>(), solution_vec, runtime);
-	// if ( success ){
+	if ( success ){
 		logger.dump_to_file(outputFile);
-	// }
+	}
 
 
 	return 0;

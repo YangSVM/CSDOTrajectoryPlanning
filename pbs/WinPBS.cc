@@ -4,10 +4,12 @@
 #include "pbs/WinPBS.h"
 #include "hybrid_a_star/hybrid_astar_interface.h"
 #include "util/file_utils.h"
+#include <queue>
 
 WinPBS::WinPBS(const Instance& instance,   int screen, int T_plan) :
         screen(screen),
-        num_of_agents(instance.getDefaultNumberOfAgents()), T_plan(T_plan)
+        num_of_agents(instance.getDefaultNumberOfAgents()), T_plan(T_plan),
+        instance(instance)
 {
     clock_t t = clock();
 
@@ -54,6 +56,10 @@ bool WinPBS::solve(const vector<State>& starts, double _time_limit)
 
         assert(!hasHigherPriority(curr->conflict->a1, curr->conflict->a2) and
                !hasHigherPriority(curr->conflict->a2, curr->conflict->a1) );
+        if ( isLivelock(starts, curr) ){
+            looseRunOver(curr, starts); // push node inside the function.
+            continue;
+        }
         auto t1 = clock();
         vector<Path*> copy(paths);
         generateChild(0, curr, curr->conflict->a1, curr->conflict->a2, starts);
@@ -61,10 +67,125 @@ bool WinPBS::solve(const vector<State>& starts, double _time_limit)
         generateChild(1, curr, curr->conflict->a2, curr->conflict->a1, starts);
         runtime_generate_child += (double)(clock() - t1) / CLOCKS_PER_SEC;
         pushNodes(curr->children[0], curr->children[1]);
+
         curr->clear();
     }  // end of while loop
     return solution_found;
 }
+
+bool WinPBS::isLivelock(const vector<State>& starts, PBSNode* curr){
+    // if ( curr->children[0] != nullptr || curr->children[1] != nullptr ){
+    //     return false;
+    // }
+    int a1 = curr->conflict->a1;
+    int a2 = curr->conflict->a2;
+    if ( paths.size() < num_of_agents || paths[a1]->states.empty()
+        || paths[a2]->states.empty()){
+        return false;
+    }
+    bool a1_at_goal =areStatesClose(
+        paths[a1]->states[0].first, instance.goal_states[a1]);
+    bool a2_at_goal =areStatesClose(
+        paths[a2]->states[0].first, instance.goal_states[a2]);
+    if ( !a1_at_goal && !a2_at_goal || (a1_at_goal && a2_at_goal)) return false;
+    int ai = a1, aj = a2;
+    if ( a1_at_goal ){
+        ai = a2;
+        aj = a1;
+        assert(!a2_at_goal && "should a1 at goal");
+    }
+
+    // ai run over aj.
+    if ( paths[ai]->states.size() < 1) return false;
+    State s = paths[ai]->states[1].first;
+    bool  runover = search_engines[aj]->detectRunover(starts[aj], s );
+    
+    return runover;
+}
+
+void WinPBS::addWaitAction(PBSNode* node, int ai){
+    Path* path  = paths[ai];
+    int timestep = path->states[0].first.time;
+    path->states.insert(
+        path->states.begin(), path->states[0]);
+    size_t n_states = path->states.size();
+    
+    // add 1 to all the timesteps.
+    for ( size_t i = 1 ; i < n_states; i++){
+        path->states[i].first.time += 1;
+    }
+
+    path->actions.insert(
+        path->actions.begin(), std::make_pair(6, 0));
+    
+    // find where is the path[ai] located and update the cost of its descendants.
+    auto curr = node; // nearest acenstor that has the path[ai]
+    for ( ; curr != nullptr; curr = curr->parent)
+	{
+        bool find_ai = false;
+        for (auto & path : curr->paths)
+		{
+            if ( path.first == ai)
+			{
+                find_ai = true;
+                break;
+			}
+		}
+        if ( find_ai) break;
+	}
+
+    // update its descendants
+    std::queue<PBSNode*> descendants;
+    descendants.push(curr);
+    while( !descendants.empty() ){
+        auto n = descendants.front();
+        descendants.pop();
+        n->cost++;
+        
+        if ( n->children[0] != nullptr ){
+            descendants.push(n->children[0]);
+        }
+        if ( n->children[1] != nullptr ){
+            descendants.push(n->children[1]);
+        }
+    }
+
+}
+
+// need to replan both side
+bool WinPBS::looseRunOver(PBSNode* curr, const vector<State>& starts){
+    // find A run over B. according to definition, action run over.
+    // I can check at goal.
+    int a1 = curr->conflict->a1;
+    int a2 = curr->conflict->a2;
+    bool a1_at_goal =areStatesClose(
+        paths[a1]->states[0].first, instance.goal_states[a1]);
+    bool a2_at_goal =areStatesClose(
+        paths[a2]->states[0].first, instance.goal_states[a2]);
+    // ai run over aj.
+    int ai = a1, aj = a2;
+    if ( a1_at_goal ){
+        ai = a2;
+        aj = a1;
+    }
+    
+
+    // replan the ai by waiting for sometime.
+    addWaitAction(curr, ai);
+    // curr->cost += 1; //because add one wait action.
+
+    vector<Path*> copy (paths);
+    // then replan the aj.
+    generateChild(0, curr, aj, ai, starts);
+    paths = copy;
+    if ( curr->children[0] == nullptr) return false;
+    generateChild(1, curr, ai, aj, starts);
+    pushNodes(curr->children[0], curr->children[1]);
+    curr->clear();
+
+    return true;
+}
+
 
 bool WinPBS::generateChild(int child_id, PBSNode* parent, int low, int high,
     const vector<State>& starts)
@@ -633,11 +754,8 @@ bool WinPBS::pathStuck(){
         else{
             s = paths[a]->states[T_plan].first;
         }
-        double dx = paths[a]->states[0].first.x - s.x;
-        double dy= paths[a]->states[0].first.y - s.y;
-        double dyaw = paths[a]->states[0].first.yaw - s.yaw;
-        dyaw = normalizeAngleAbsInPi(dyaw);
-        if ( fabs(dx) + fabs(dy) + fabs(dyaw) > 1e-3 ){
+
+        if ( !areStatesClose(s, paths[a]->states[0].first)){
             isStuck = false;
             break;
         }

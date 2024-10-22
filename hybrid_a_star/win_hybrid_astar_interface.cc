@@ -22,3 +22,9 @@ Path WinHybriAStarInterface::findOptimalPath(
 
     return m_solution;
 }
+
+
+bool WinHybriAStarInterface::detectRunover( const State& start, const State& s){
+    return hybridAStar.detectRunover(start, s);
+    
+}

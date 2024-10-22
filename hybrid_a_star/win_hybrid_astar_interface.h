@@ -16,6 +16,8 @@ public:
         const std::vector<Path*>& paths, int agent);
     std::string getName() const  { return "hybrid_a_star_win";}; 
 
+    bool detectRunover( const State& start, const State& s);
+
 	const Instance& instance;
 
 private:

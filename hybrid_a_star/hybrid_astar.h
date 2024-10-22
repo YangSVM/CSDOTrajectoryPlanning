@@ -124,6 +124,11 @@ class HybridAStar {
 
 
       Node current = openSet.top();
+      if ( current.state.time - startState.time > 1e3 ){
+        std::cout << "\033[1m\033[31m Hybrid A* max time reached. "
+          <<"Maybe there is static invalid. \033[0m \n" ;
+        return false;
+      }
       // m_env.onExpandNode(current.state, current.fScore, current.gScore);
       State path_end(0,0,0);
 
@@ -221,6 +226,11 @@ class HybridAStar {
     this->T_plan = T_plan;
     return true;
   }
+
+  bool detectRunover( const State& start, const State& s){
+    return m_env.detectRunover(start, s);
+  }
+
  private:
  int T_plan;
   struct Node {

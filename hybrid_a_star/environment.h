@@ -141,6 +141,18 @@ class Environment {
       }
     }
 
+    //  do not run over. wrong
+    // for ( size_t a = 0 ; a < all_goals.size(); a++){
+    //   if ( a == m_agent_id) continue;
+    //   if ( higher_agents.find(a) != higher_agents.end()) continue;
+    //   if ( paths.size() < a + 1 || paths[a]->states.empty() ) continue;
+    //   State & s = paths[a]->states[0].first;
+    //   m_dynamic_obstacles.insert(
+    //       std::pair<int, State>(s.time, s)
+    //   );
+    // }
+
+
 
     // static inference.
     // who only has one frame state and stay at goal
@@ -172,6 +184,22 @@ class Environment {
 
 
     return true;
+  }
+
+  bool detectRunover( const State& startState, const State& s_obs){
+    std::vector<Neighbor<State, Action, Cost>> neighbors;
+    neighbors.reserve(10);
+
+    getNeighbors(startState, 6, neighbors);
+    bool hasNeighborValid = false;
+    for ( auto neigh : neighbors){
+      State & s = neigh.state;
+      bool collision = s_obs.agentCollision(s);
+      if (!collision) return false;
+    }
+
+    return true;
+
   }
 
 
@@ -671,14 +699,19 @@ class Environment {
           Constants::dyaw[act];
       dyaw = ratio * Constants::dyaw[act];
       
-      dx = Constants::r * sin(fabs(dyaw));
-      dy = Constants::r * (1 - cos(fabs(dyaw)));
-      if (act == 4 || act == 5) {
-        dx = -dx;
-      }
-      if (act == 1 || act == 4) {
-        dy = -dy;
-      }
+      // method 1 exact.
+      // dx = Constants::r * sin(fabs(dyaw));
+      // dy = Constants::r * (1 - cos(fabs(dyaw)));
+      // if (act == 4 || act == 5) {
+      //   dx = -dx;
+      // }
+      // if (act == 1 || act == 4) {
+      //   dy = -dy;
+      // }
+
+      // method 2. approximation.
+      dx = ratio * Constants::dx[act];
+      dy = ratio*Constants::dy[act];
 
     }
     State s = result.back().first;
