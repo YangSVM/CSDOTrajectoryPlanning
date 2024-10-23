@@ -8,32 +8,134 @@
 # function: generate_new
 import yaml
 import random
-from math import pi, ceil
+from math import pi, ceil, sin, cos
 import os
 import argparse
 import numpy as np
 # import tqdm
 
 
+map_size = 50
 
-# range of obstacle radius
-r_obs_ = [-1,-1]  # load from config.yaml
-num_agents = 100
-map_size = 100
-
-num_obstacles = 100
-
-LF = -1  # load from config.yaml
-CarWidth = -1  # load from config.yaml
 
 grid_size = 2
 v_size = int(map_size/grid_size)
+num_agents = -1 # iterated by program.
+num_maps = 60  # per setting.
+num_obstacles = -1 # decided by map size
 
-# vehicle radius
-rv = (LF**2 + CarWidth**2/4)
-r_obs = 0.8
+# Constants
+class C:
+    rv = 0.8
 
-def generate_cfg(visited):
+    car_width = 0 
+    LF  = 0
+    LB = 0
+    f2x = 0
+    r2x = 0
+    
+    r_obs = 0.8
+    r_buffer =0.1
+    
+    def __init__(self) -> None:
+        pass
+
+
+def read_config_file():
+    try:
+        with open(os.path.abspath(os.getcwd())+
+                "/config.yaml") as config_file:
+            car_config = yaml.load(config_file, Loader=yaml.FullLoader)
+            # global carWidth, LF, LB, obsRadius, framesPerMove
+            C.car_width = car_config["carWidth"]
+
+            C.LF = car_config["LF"]
+            C.LB = car_config["LB"]
+            C.car_width = car_config["carWidth"]
+            
+            # radius of vehicle
+            C.rv = 1.0/2.0 *(  ( (C.LF + C.LB)** 2)/4 +  C.car_width**2 ) ** 0.5
+
+            C.r_obs = car_config["obsRadius"]
+            
+            C.f2x  =  1/4.0 * (3.0*C.LF - C.LB)
+            C.r2x = 1/4.0 * (C.LF - 3.0 * C.LB)
+
+            print("LF", C.LF, "LB", C.LB, 
+                  "car width", C.car_width, "rv:", C.rv)
+    except IOError:
+        # do things with your exception
+        print("ERROR loading config file", os.path.abspath(os.getcwd())+
+                "/src/config.yaml", " unable to generate scenarios")
+    pass
+
+class Obstacle:
+    def __init__(self, x, y) :
+        self.x = x
+        self.y = y
+        self.r = C.r_obs
+    
+    def obs_collision(self, obs):
+        d = ((self.x - obs.x) ** 2 + ( self.y - obs.y)**2)**0.5
+        return d <= self.r + obs.r
+    
+    def obstacles_collision(self, obstacles):
+        for obs in obstacles:
+            if self.obs_collision(obs):
+                return True
+        return False
+
+# use double circle approximation to detect collision.
+class State:
+    def __init__(self,x,y,yaw) -> None:
+        self.x = x 
+        self.y = y 
+        self.yaw = yaw
+        
+        self.xf = x + C.f2x * cos(yaw)
+        self.xr = x + C.r2x * cos(yaw)
+        self.yf = y + C.f2x * sin(yaw)
+        self.yr = y + C.r2x * sin(yaw)
+        
+    def obs_collision(self, obs : Obstacle):
+        d1 = ((self.xf - obs.x)**2 + (self.yf - obs.y)**2) ** 0.5
+        d2 = ((self.xr - obs.x)**2 + (self.yr - obs.y)**2) ** 0.5
+
+        if  d1 < obs.r + C.rv + C.r_buffer or d2 < obs.r + C.rv + C.r_buffer:
+            return True
+        return False
+    
+    def agent_collsion(self, s):
+
+        r_c = C.rv * 2 + C.r_buffer
+        d1 = ((self.xf - s.xf)**2 + (self.yf - s.yf)**2) ** 0.5 - r_c
+        d2 = ((self.xr - s.xf)**2 + (self.yr - s.yf)**2) ** 0.5 - r_c
+        d3 = ((self.xf - s.xr)**2 + (self.yf - s.yr)**2) ** 0.5 - r_c
+        d4 = ((self.xr - s.xr)**2 + (self.yr - s.yr)**2) ** 0.5 - r_c
+        if d1 <0 or d2 <0 or d3<0 or d4 < 0 :
+            return True
+        return False
+    
+    def state_valid(self, obstacles, agents):
+        d =C.r_buffer + C.rv
+        if self.xf < d or self.xf > map_size - d or \
+            self.xr < d or self.xr > map_size - d or \
+            self.yf < d or self.yf > map_size - d or \
+            self.yr < d or self.yr > map_size - d:
+                return False
+            
+        
+        for obs in obstacles:
+            if self.obs_collision(obs):
+                return False
+        
+        for agent in agents:
+            if self.agent_collsion(agent):
+                return False
+        
+        return True
+
+def generate_rand_state(visited):
     pos = np.random.random([v_size, v_size])
     pos[visited] = 0
     ind = np.unravel_index(np.argmax(pos), pos.shape)
@@ -45,66 +147,35 @@ def generate_cfg(visited):
     x = random.uniform(-d_half, d_half)
     y = random.uniform(-d_half, d_half)
     theta = random.uniform(-pi, pi)
-    return np.array([ind[0]*grid_size+x, grid_size* ind[1]+ y,theta])
-
-# return true if collision.
-def obsCollision(obs, cfg, cfg_type='agent'):
-    # not so close. otherwise the hybrid a * cannot find the path.
-    if cfg_type == 'agent':
-        r_cfg = rv
-    elif cfg_type == 'obstacle':
-        r_cfg = cfg[2]
-    for ob in obs:
-        if len(ob) == 2:
-            x, y = ob
-            r = r_obs
-        elif len(ob)==3:
-            x, y, r = ob
-        else:
-            print( "unsupported format")
-        if (cfg[0] - x)**2 + (cfg[1] -y)**2 - (r+ r_cfg)**2 <0 :
-            return True 
-    return False
-
-# return true if collision.
-def agentCollision(cfgs, cfg, cfg_type='agent'):
-    # not so close. otherwise the hybrid a * cannot find the path.
-    if cfg_type == 'agent':
-        r_cfg = rv
-    elif cfg_type == 'obstacle':
-        r_cfg = cfg[2]
-    for a in cfgs:
-        x, y = a[0], a[1]
-        if (cfg[0] - x)**2 + (cfg[1] -y)**2 - (rv + r_cfg)**2 <0 :
-            return True 
-    return False
+    return State(ind[0]*grid_size+x, grid_size* ind[1]+ y,theta)
 
 
-def generate_obstacle_cfg():
-    r = random.uniform(r_obs_[0], r_obs_[1])
+def generate_random_obstacle():
+    r = C.r_obs
     
     x = random.uniform(r ,  map_size - r)
     y = random.uniform(r ,  map_size - r)
-    return np.array([x ,y, r])
+    obs = Obstacle(x, y)
+    return obs
 
 
 def generate_legal_obstacles(n_cfg):
-    cfgs = []
+    obstalces = []
     iter_max = 10* num_obstacles
     while n_cfg > 0 and iter_max>0:
-        cfg = generate_obstacle_cfg()
-        while obsCollision(cfgs, cfg)  and iter_max >0:
-            cfg = generate_obstacle_cfg()
+        obs = generate_random_obstacle()
+        while obs.obstacles_collision(obstalces)  and iter_max >0:
+            obs = generate_random_obstacle()
             iter_max -= 1
         n_cfg -= 1
-        cfgs.append(cfg)
+        obstalces.append(obs)
     
-    return cfgs
+    return obstalces
 
 def generate_empty_visited():
     # one ceil one agent
     visited = np.zeros([v_size, v_size], dtype=bool)
-    margin = ceil(rv/grid_size)
+    margin = ceil(C.rv/grid_size)
     # not allowed generate in margin
     visited[:, :margin] = 1
     visited[:, v_size - margin:] = 1
@@ -112,7 +183,7 @@ def generate_empty_visited():
     visited[v_size - margin:, :] = 1
     return visited
 
-def generate_legal_cfgs(obs, agents, n_cfg, visited=None, cfgs=[]):
+def generate_legal_states(obs, agents, n_cfg, visited=None, cfgs=[]):
     if visited is None:
         visited = generate_empty_visited()
 
@@ -121,90 +192,45 @@ def generate_legal_cfgs(obs, agents, n_cfg, visited=None, cfgs=[]):
     # for agent in agents:
     #     if len(agent[key]) > 0:
     #         cfgs.append( agent[key] )
-    new_cfgs = []
+    new_states = []
     
     while n_cfg > 0:
-        cfg = generate_cfg(visited)
-        if cfg is None:
-            return new_cfgs
+        state = generate_rand_state(visited)
+        if state is None:
+            return new_states
    
-        while obsCollision(obs, cfg) or agentCollision(cfgs + new_cfgs, cfg):
-            cfg = generate_cfg(visited)
-            if cfg is None:
-                return new_cfgs
+        while not state.state_valid(obs, new_states + cfgs) :
+            state = generate_rand_state(visited)
+            if state is None:
+                return new_states
         
         n_cfg -= 1
-        new_cfgs.append(cfg)
+        new_states.append(state)
     
-    return new_cfgs
+    return new_states
 
-# 
-def dumpCBSScenarios(map_fname, starts, goals, obs, n_real_agents):
-    pass
 
 def dumpScenarios(map_fname, starts, goals, obs, n_real_agents):
     with open(map_fname, "w") as fmap:
         fmap.write("agents:\n")
         for i in range( n_real_agents ):
             fmap.write("  - start: [{:.2f}, {:.2f}, {:.2f}]\n".format(
-                starts[i][0], starts[i][1], starts[i][2]))
+                starts[i].x, starts[i].y, starts[i].yaw))
             fmap.write("    name: agent"+str(i)+"\n")
             fmap.write("    goal: [{:.2f}, {:.2f}, {:.2f}]\n".format(
-                goals[i][0], goals[i][1], goals[i][2]))
+                goals[i].x, goals[i].y, goals[i].yaw))
             
         fmap.write("map:\n")
         fmap.write("  dimensions: [{:d}, {:d}]\n".format(map_size, map_size) )
         fmap.write("  obstacles:\n")
         for ob in obs:
-            if len(ob) == 3:
-                fmap.write("  - [{:.2f}, {:.2f}, {:.2f}]\n".format(
-                    ob[0], ob[1], ob[2]
+            fmap.write("  - [{:.2f}, {:.2f}, {:.2f}]\n".format(
+                    ob.x, ob.y, ob.r
                 ))
-            elif len(ob) ==2:
-                fmap.write("  - [{:.2f}, {:.2f}]\n".format(
-                    ob[0], ob[1]
-                ))
-            else:
-                print( "unsupport format")
-
-def extract_cfgs(agents, key):
-    cfgs = [] 
-    # extract the existing cfgs
-    for agent in agents:
-        if len(agent[key]) > 0:
-            cfgs.append( agent[key] )
-    return cfgs
-
-# duplicated method
-def add_agent2scenario(map_fname):
-    
-    with open(map_fname) as map_file:    
-        map = yaml.load(map_file, Loader=yaml.FullLoader)
-    obs = map["map"]["obstacles"]
-    agents = map["agents"]
-    
-    n_cfg = num_agents - len(agents)
-    # t0 = time.time()
-    visited = generate_empty_visited()
-    cfgs_start = extract_cfgs(agents, "start")
-    cfgs_goal = extract_cfgs(agents, "goal")
-    cfgs = cfgs_start + cfgs_goal
-    starts = generate_legal_cfgs(obs, agents, n_cfg, visited,  cfgs)
-    goals = generate_legal_cfgs(obs, agents, n_cfg, visited,  cfgs+starts)
-    
-    starts_all = cfgs_start + starts
-    goals_all = cfgs_goal + goals
-
-    # write as a new file
-    return starts_all, goals_all, obs
-    # 
-        
-    
-    
-    pass
 
 
-def generate_new_scenario(map_fname):
+
+def generate_new_scenario( ):
     
     # with open(map_fname) as map_file:    
     #     map = yaml.load(map_file, Loader=yaml.FullLoader)
@@ -218,43 +244,19 @@ def generate_new_scenario(map_fname):
     visited = generate_empty_visited()
     
     cfgs =[]
-    starts = generate_legal_cfgs(obs, agents, n_cfg, visited, cfgs)
-    goals = generate_legal_cfgs(obs, agents, n_cfg, visited, cfgs+starts)
+    starts = generate_legal_states(obs, agents, n_cfg, visited, cfgs)
+    goals = generate_legal_states(obs, agents, n_cfg, visited, cfgs+starts)
     
     n_real_agents = min([len(starts), len(goals)])
-    # print("found ", n_real_agents, "agents!")
-    # # write as a new file
-    # dumpScenarios(map_fname, starts, goals, obs, n_real_agents)
-    
-    # 
+
     return starts, goals, obs
     
     
-
-def load_gloabl_variable():
-    # load the map arguments. global variable.
-    try:
-        with open(os.path.abspath(os.getcwd())+
-                "/config.yaml") as config_file:
-            carConfig = yaml.load(config_file, Loader=yaml.FullLoader)
-            # global carWidth, LF, LB, obsRadius, framesPerMove
-            carWidth = carConfig["carWidth"]
-            global LF, LB, rv, CarWidth, r_obs_
-            LF = carConfig["LF"]
-            LB = carConfig["LB"]
-            CarWidth = carConfig["carWidth"]
-            # large radius to avoid collision
-            rv = (LF**2 + CarWidth**2/4)**0.5
-            # 
-            r_obs_[0] = carConfig["obsRadius"]
-            r_obs_[1] = carConfig["obsRadius"]
-            print("LF", LF, "LB", LB, "car width", carWidth, "rv:", rv)
-    except IOError:
-        # do things with your exception
-        print("ERROR loading config file", os.path.abspath(os.getcwd())+
-                "/src/config.yaml", " unable to generate scenarios")
-        
-        
+def test():
+    goal = State(22.05, 42.70, 2.07)
+    ob = Obstacle(21.96,45.78)
+    collision = goal.obs_collision(ob)
+    return collision
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -262,63 +264,60 @@ if __name__ == '__main__':
                         help="input file path containing map")
     args = parser.parse_args()
     
-    load_gloabl_variable()
-
-    n_map = 60
-
-    n_agent_file = 20
-    n_obs_file = 50
-    fnmae_prefix = "map_%dby%d_obst%d_agents%d_ex"%(map_size, map_size, n_obs_file, n_agent_file)
+    read_config_file()
+   
+    num_obstacles_list = [ 0 ]
+    if map_size == 100:
+        num_agent_list = [25, 30, 35, 40, 50,60,70,80,90]  # for map 100 x 100. 
+        num_obstacles_list.append(100)
+    elif map_size == 50:
+        num_agent_list = [5,10,15,20,25]  # for map 50 x 50. 
+        num_obstacles_list.append(25) 
     
-    # num_agent_list = [60,70,80,90,100]
-    # num_agent_list = [25, 30, 35, 40]  # for map 50 x 50. append
-    num_agent_list = [25, 30, 35, 40, 50,60,70,80,90]  # for map 100 x 100. new
-    # num_agent_list = [20, 30, 40, 50, 60,70,80]  # for map 100 x 100. obstacle 200.
-    # num_agent_list = [110, 120, 130, 140, 150] # for map 300 x 300
-    for na in num_agent_list:
-        # global num_agents
-        num_agents = na
-        
-        iter_max = n_map*2
-        i = 0
-        for iter in range(iter_max):
-            if i >= n_map:
-                print("generated", n_map, "maps")
-                break
-            map_file = os.path.join(args.map_path, fnmae_prefix + str(i)+'.yaml')
+    for n_obs in num_obstacles_list:
+        num_obstacles = n_obs
+        for na in num_agent_list:
+            # global num_agents
+            num_agents = na
+            
+            iter_max = num_maps*2
+            i = 0
+            for iter in range(iter_max):
+                if i >= num_maps:
+                    print("generated", num_maps, "maps")
+                    break
 
-            # append agent in an old configuration.
-            # starts, goals, obs = add_agent2scenario(map_file)
-            
-            # generate new scenario directly
-            starts, goals, obs = generate_new_scenario(map_file)
-            
-
-            n_real_agents = min([len(starts), len(goals)])
-
-            print("found ", n_real_agents, "agents!")
-            if n_real_agents < na:
-                print("generate agents less than", na, ". try again.")
-                continue
-            
-            obs_str = ""
-            if num_obstacles > 0 :
-                obs_str = "obstacle" + "100"
-            else:
-                obs_str = "empty"
-            # output_path = os.path.dirname(os.path.abspath(__file__))+\
-            #     "/../benchmark/map%dby%d/agents%d/%s/"%(map_size, map_size, na, obs_str)
-            
-            # test output in build folder.
-            output_path = os.path.dirname(os.path.abspath(__file__))+\
-                "/../build/benchmark/map%dby%d/agents%d/%s/"%(map_size, map_size, na, obs_str)
-            
-            if not os.path.exists(output_path):
-                os.makedirs(output_path)
+                # generate new scenario directly
+                starts, goals, obs = generate_new_scenario()
                 
-            output_fname = output_path+\
-                "map_%dby%d_obst%d_agents%d_ex%d.yaml"%(map_size, map_size, num_obstacles, na, i)
 
-            dumpScenarios(output_fname, starts, goals, obs, na)
-            i += 1
+                n_real_agents = min([len(starts), len(goals)])
+
+                print("found ", n_real_agents, "agents!")
+                if n_real_agents < na:
+                    print("generate agents less than", na, ". try again.")
+                    continue
+                
+                obs_str = ""
+                if num_obstacles > 0 :
+                    obs_str = "obstacle"
+                else:
+                    obs_str = "empty"
+                # output_path = os.path.dirname(os.path.abspath(__file__))+\
+                #     "/../benchmark/map%dby%d/agents%d/%s/"%(map_size, map_size, na, obs_str)
+                
+                # test output in build folder.
+                output_path = os.path.dirname(os.path.abspath(__file__))+\
+                    "/../build/benchmark/map%dby%d/agents%d/%s/"%(
+                        map_size, map_size, na, obs_str)
+                
+                if not os.path.exists(output_path):
+                    os.makedirs(output_path)
+                    
+                output_fname = output_path+\
+                    "map_%dby%d_obst%d_agents%d_ex%d.yaml"%(
+                        map_size, map_size, num_obstacles, na, i)
+
+                dumpScenarios(output_fname, starts, goals, obs, na)
+                i += 1
 

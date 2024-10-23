@@ -69,7 +69,8 @@ int main(int argc, char** argv)
 	srand(0);
 	Timer timer;
 
-    WinPBS wpbs(instance, vm["screen"].as<int>(), Constants::T_plan);
+	int screen = vm["screen"].as<int>();
+    WinPBS wpbs(instance,  screen, Constants::T_plan);
 
 	double runtime = 0, iter_time = 0;
 	bool success =false;
@@ -90,11 +91,12 @@ int main(int argc, char** argv)
 
 		// ----------- 2. update start states by solution . --------------- //
 		// update. set the start states as T_plan later.
-		timestep += Constants::T_plan;
 		if ( ! find_local_traj ){
 			cout << "cannot find solution in this iteration. timestep: " << timestep <<endl; 
 			break;
 		}
+		timestep += Constants::T_plan;
+
 		wpbs.getPaths(solutions_part);
 
 		for ( int a = 0 ; a < na; a++){
@@ -156,7 +158,7 @@ int main(int argc, char** argv)
 	std::cout << "total time: " << runtime<< std::endl;
 
 	// dumpPlanResults(vm["output"].as<string>(), solution_vec, runtime);
-	if ( success ){
+	if ( success || screen == 4){
 		logger.dump_to_file(outputFile);
 	}
 

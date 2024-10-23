@@ -267,89 +267,93 @@ class Environment {
 
     // if (goal_distance > 2 * (Constants::LB + Constants::LF)) return false;
     if (!isInRange(state)) return false;
-    ompl::base::ReedsSheppStateSpace reedsSheppSpace(Constants::r);
-    OmplState* rsStart = (OmplState*)reedsSheppSpace.allocState();
-    OmplState* rsEnd = (OmplState*)reedsSheppSpace.allocState();
-    rsStart->setXY(state.x, state.y);
-    rsStart->setYaw(state.yaw);
-    rsEnd->setXY(getGoal().x, getGoal().y);
-    rsEnd->setYaw(getGoal().yaw);
-    ompl::base::ReedsSheppStateSpace::ReedsSheppPath reedsShepppath =
-        reedsSheppSpace.reedsShepp(rsStart, rsEnd);
-
+    double dgoal = calcStatesDistance(state, m_goal);
+    bool at_goal = true;
     std::vector<State> path;
     std::unordered_map<State, std::tuple<State, Action, double, double>,
-                       std::hash<State>>
+                      std::hash<State>>
         cameFrom;
     cameFrom.clear();
     path.emplace_back(state);
-    bool at_goal = true;
-    for (auto pathidx = 0; pathidx < 5; pathidx++) {
-      if (fabs(reedsShepppath.length_[pathidx]) < 1e-6) continue;
-      at_goal = false;
-      double n_dyaw_act, deltaLength, act, cost;
-      switch (reedsShepppath.type_[pathidx]) {
-        case 0:  // RS_NOP
-          continue;
-          break;
-        case 1:  // RS_LEFT
-          n_dyaw_act = reedsShepppath.length_[pathidx]; //
-          deltaLength = Constants::r * reedsShepppath.length_[pathidx];
-          act = 2;
-          cost = reedsShepppath.length_[pathidx] * Constants::r *
-                 Constants::penaltyTurning;
-          break;
-        case 2:  // RS_STRAIGHT
-          n_dyaw_act = 0;
-          deltaLength = reedsShepppath.length_[pathidx] * Constants::r;
-          act = 0;
-          cost = deltaLength;
-          break;
-        case 3:  // RS_RIGHT
-          n_dyaw_act = -reedsShepppath.length_[pathidx];
-          deltaLength = Constants::r * reedsShepppath.length_[pathidx];
-          act = 1;
-          cost = reedsShepppath.length_[pathidx] * Constants::r *
-                 Constants::penaltyTurning;
-          break;
-        default:
-          std::cout << "\033[1m\033[31m"
-                    << "Warning: Receive unknown ReedsSheppPath type"
-                    << "\033[0m\n";
-          break;
-      }
-      if (cost < 0) {
-        cost = -cost * Constants::penaltyReversing;
-        act = act + 3;
-      }
 
-      State s = path.back();
-      std::vector<std::pair<State, double>> next_path;
-      if (generatePath(s, act, n_dyaw_act, deltaLength, next_path)){
-        // std::cout << "  generate path param: "<< s <<" "<<act<<" "<< deltaYaw <<std::endl;
-        for (auto iter = next_path.begin(); iter != next_path.end(); iter++) {
-          State next_s = iter->first;
-          if (!stateValid(next_s))
-            return false;   // collision. cannot fast-forward
-          else {
-            gscore += iter->second;
-            if (!(next_s == path.back())) {
-              cameFrom.insert(std::make_pair<>(
-                  next_s,
-                  std::make_tuple<>(path.back(), act, iter->second, gscore)));
+    if ( dgoal > 1e-1) {
+      at_goal = false;
+      ompl::base::ReedsSheppStateSpace reedsSheppSpace(Constants::r);
+      OmplState* rsStart = (OmplState*)reedsSheppSpace.allocState();
+      OmplState* rsEnd = (OmplState*)reedsSheppSpace.allocState();
+      rsStart->setXY(state.x, state.y);
+      rsStart->setYaw(state.yaw);
+      rsEnd->setXY(getGoal().x, getGoal().y);
+      rsEnd->setYaw(getGoal().yaw);
+      ompl::base::ReedsSheppStateSpace::ReedsSheppPath reedsShepppath =
+          reedsSheppSpace.reedsShepp(rsStart, rsEnd);
+
+
+      for (auto pathidx = 0; pathidx < 5; pathidx++) {
+        if (fabs(reedsShepppath.length_[pathidx]) < 1e-6) continue;
+        at_goal = false;
+        double n_dyaw_act, deltaLength, act, cost;
+        switch (reedsShepppath.type_[pathidx]) {
+          case 0:  // RS_NOP
+            continue;
+            break;
+          case 1:  // RS_LEFT
+            n_dyaw_act = reedsShepppath.length_[pathidx]; //
+            deltaLength = Constants::r * reedsShepppath.length_[pathidx];
+            act = 2;
+            cost = reedsShepppath.length_[pathidx] * Constants::r *
+                  Constants::penaltyTurning;
+            break;
+          case 2:  // RS_STRAIGHT
+            n_dyaw_act = 0;
+            deltaLength = reedsShepppath.length_[pathidx] * Constants::r;
+            act = 0;
+            cost = deltaLength;
+            break;
+          case 3:  // RS_RIGHT
+            n_dyaw_act = -reedsShepppath.length_[pathidx];
+            deltaLength = Constants::r * reedsShepppath.length_[pathidx];
+            act = 1;
+            cost = reedsShepppath.length_[pathidx] * Constants::r *
+                  Constants::penaltyTurning;
+            break;
+          default:
+            std::cout << "\033[1m\033[31m"
+                      << "Warning: Receive unknown ReedsSheppPath type"
+                      << "\033[0m\n";
+            break;
+        }
+        if (cost < 0) {
+          cost = -cost * Constants::penaltyReversing;
+          act = act + 3;
+        }
+
+        State s = path.back();
+        std::vector<std::pair<State, double>> next_path;
+        if (generatePath(s, act, n_dyaw_act, deltaLength, next_path)){
+          // std::cout << "  generate path param: "<< s <<" "<<act<<" "<< deltaYaw <<std::endl;
+          for (auto iter = next_path.begin(); iter != next_path.end(); iter++) {
+            State next_s = iter->first;
+            if (!stateValid(next_s))
+              return false;   // collision. cannot fast-forward
+            else {
+              gscore += iter->second;
+              if (!(next_s == path.back())) {
+                cameFrom.insert(std::make_pair<>(
+                    next_s,
+                    std::make_tuple<>(path.back(), act, iter->second, gscore)));
+              }
+              path.emplace_back(next_s);
             }
-            path.emplace_back(next_s);
           }
         }
+        else{
+          return false;
+        }
       }
-      else{
-        return false;
-      }
-
-
 
     }
-
+    
     if ( at_goal){ // maybe at goal at the first timestep. should test dynamic obs.
       if ( ! stateValid(state)){
         return false;

@@ -191,10 +191,10 @@ struct State {
     obs(0, 1) = obstacle.y - this->y;
 
     auto rotated_obs = boost::numeric::ublas::prod(obs, rot);
-    if (rotated_obs(0, 0) > -Constants::LB - obstacle.r *1.2 &&
-        rotated_obs(0, 0) < Constants::LF + obstacle.r * 1.2 &&
-        rotated_obs(0, 1) > -Constants::carWidth / 2.0 - obstacle.r *1.2 &&
-        rotated_obs(0, 1) < Constants::carWidth / 2.0 + obstacle.r *1.2)
+    if (rotated_obs(0, 0) > -Constants::LB - obstacle.r  &&
+        rotated_obs(0, 0) < Constants::LF + obstacle.r &&
+        rotated_obs(0, 1) > -Constants::carWidth / 2.0 - obstacle.r &&
+        rotated_obs(0, 1) < Constants::carWidth / 2.0 + obstacle.r )
       return true;
     return false;
     
